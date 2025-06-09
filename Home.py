@@ -67,7 +67,7 @@ class SubmissionViewerApp:
             except FileNotFoundError:
                 self.saved_scores = {}
 
-    def render_main_content(self):
+    def create_widgets(self):
         # load submitted text
         student_dir = os.path.join(self.root_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
@@ -84,24 +84,14 @@ class SubmissionViewerApp:
         # display text and attachments
         col_main, col_grade = st.columns([3, 1], border=True)
         with col_main:
-            self._render_submission_tab(pdfs, html_content, attachments_dir)
+            self.create_submission_tab(pdfs, html_content, attachments_dir)
         with col_grade:
-            self._render_grading_tab()
+            self.create_grading_tab()
 
         # progress bar
-        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
-        try:
-            with open(grades_file, encoding="utf-8") as gf:
-                graded = json.load(gf)
-            graded_count = len(graded)
-        except FileNotFoundError:
-            graded_count = 0
-        total_count = len(self.students)
-        st.markdown("---")
-        st.subheader(f"進捗状況: {graded_count} / {total_count}")
-        st.progress(graded_count / total_count if total_count else 0)
+        self.display_progress()
 
-    def _render_submission_tab(self, pdfs, html_content, attachments_dir):
+    def create_submission_tab(self, pdfs, html_content, attachments_dir):
         # create tabs for attachments and text
         labels = []
         if pdfs:
@@ -130,7 +120,7 @@ class SubmissionViewerApp:
                     case "提出テキスト":
                         components.html(html_content, height=600, scrolling=True)
 
-    def _render_grading_tab(self):
+    def create_grading_tab(self):
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             st.subheader("採点結果")
@@ -204,10 +194,23 @@ class SubmissionViewerApp:
             writer = csv.writer(f)
             writer.writerows(lines)
 
+    def display_progress(self):
+        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+        try:
+            with open(grades_file, encoding="utf-8") as gf:
+                graded = json.load(gf)
+            graded_count = len(graded)
+        except FileNotFoundError:
+            graded_count = 0
+        total_count = len(self.students)
+        st.markdown("---")
+        st.subheader(f"進捗状況: {graded_count} / {total_count}")
+        st.progress(graded_count / total_count if total_count else 0)
+
     def run(self):
         self.create_sidebar()
         self.render_student_selection()
-        self.render_main_content()
+        self.create_widgets()
 
 
 if __name__ == "__main__":
