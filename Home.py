@@ -36,34 +36,36 @@ class SubmissionViewerApp:
                 return json.load(f)
         return {}
 
-    def render_sidebar(self):
-        st.sidebar.title("設定")
-        self.selected_assignment = st.sidebar.selectbox("課題を選択", self.assignments, key="assignment_select")
-        self.root_dir = os.path.join(self.base_dir, self.selected_assignment)
-        self.allocation = self._load_allocation(self.root_dir)
+    def create_sidebar(self):
+        with st.sidebar:
+            self.selected_assignment = st.selectbox("課題を選択", self.assignments, key="assignment_select")
+            self.root_dir = os.path.join(self.base_dir, self.selected_assignment)
+            self.allocation = self._load_allocation(self.root_dir)
 
     def render_student_selection(self):
-        self.students = self._list_subdirs(self.root_dir)
-        if "student_index" not in st.session_state:
-            st.session_state["student_index"] = 0
-        sel = st.selectbox(
-            "学生を選択",
-            self.students,
-            index=st.session_state["student_index"],
-            key="student_select",
-            format_func=lambda x: x.split("(")[0],
-        )
-        if sel != self.students[st.session_state["student_index"]]:
-            st.session_state["student_index"] = self.students.index(sel)
-        self.selected_student = self.students[st.session_state["student_index"]]
-        # 既存の採点結果読み込み
-        try:
-            grades_file = os.path.join(self.root_dir, "detailed_grades.json")
-            with open(grades_file, encoding="utf-8") as gf:
-                all_data = json.load(gf)
-            self.saved_scores = all_data.get(self.selected_student, {})
-        except FileNotFoundError:
-            self.saved_scores = {}
+        with st.sidebar:
+            self.students = self._list_subdirs(self.root_dir)
+            if "student_index" not in st.session_state:
+                st.session_state["student_index"] = 0
+            sel = st.selectbox(
+                "学生を選択",
+                self.students,
+                index=st.session_state["student_index"],
+                key="student_select",
+                format_func=lambda x: x.split("(")[0],
+            )
+            if sel != self.students[st.session_state["student_index"]]:
+                st.session_state["student_index"] = self.students.index(sel)
+            self.selected_student = self.students[st.session_state["student_index"]]
+
+            # load saved scores for the selected student
+            try:
+                grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+                with open(grades_file, encoding="utf-8") as gf:
+                    all_data = json.load(gf)
+                self.saved_scores = all_data.get(self.selected_student, {})
+            except FileNotFoundError:
+                self.saved_scores = {}
 
     def render_main_content(self):
         # load submitted text
@@ -190,7 +192,7 @@ class SubmissionViewerApp:
             writer.writerows(lines)
 
     def run(self):
-        self.render_sidebar()
+        self.create_sidebar()
         self.render_student_selection()
         self.render_main_content()
 
