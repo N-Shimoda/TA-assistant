@@ -72,7 +72,7 @@ class SubmissionViewerApp:
         attachments = os.listdir(attachments_dir) if os.path.isdir(attachments_dir) else []
         pdfs = [f for f in attachments if Path(f).suffix.lower() == ".pdf"]
 
-        col_main, col_grade = st.columns([3, 1])
+        col_main, col_grade = st.columns([3, 1], border=True)
         with col_main:
             labels = ["添付ファイル", "提出テキスト"] if pdfs else ["提出テキスト"]
             tabs = st.tabs(labels)
@@ -95,40 +95,42 @@ class SubmissionViewerApp:
             self._render_grading_tab()
 
     def _render_grading_tab(self):
-        st.header("採点結果")
-        self.scores = {}
+        tabs = st.tabs(["採点結果"])
+        with tabs[0]:
+            st.subheader("採点結果")
+            self.scores = {}
 
-        # 深いネスト対応の再帰関数
-        def recurse(prefix: str, alloc: dict):
-            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
-                max_score = int(alloc["score"])
-                key = prefix
-                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                prev_val = self.saved_scores.get(key, 0)
-                if alloc["type"] == "partial":
-                    val = st.number_input(
-                        prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
-                    )
-                else:
-                    checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
-                    val = max_score if checked else 0
-                self.scores[key] = val
-            elif isinstance(alloc, dict):
-                for k, v in alloc.items():
-                    new_pref = f"{prefix}_{k}" if prefix else k
-                    recurse(new_pref, v)
+            # 深いネスト対応の再帰関数
+            def recurse(prefix: str, alloc: dict):
+                if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
+                    max_score = int(alloc["score"])
+                    key = prefix
+                    widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
+                    prev_val = self.saved_scores.get(key, 0)
+                    if alloc["type"] == "partial":
+                        val = st.number_input(
+                            prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                        )
+                    else:
+                        checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
+                        val = max_score if checked else 0
+                    self.scores[key] = val
+                elif isinstance(alloc, dict):
+                    for k, v in alloc.items():
+                        new_pref = f"{prefix}_{k}" if prefix else k
+                        recurse(new_pref, v)
 
-        for q_key, q_val in self.allocation.items():
-            recurse(q_key, q_val)
+            for q_key, q_val in self.allocation.items():
+                recurse(q_key, q_val)
 
-        total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-        # 保存ボタン
-        st.button("保存", key="save_button", on_click=self._on_save_click, args=(total,))
-        # 保存時トースト
-        if st.session_state.get("just_saved"):
-            st.toast("採点結果を保存しました！次の学生へ移ります", icon="🎉")
-            st.session_state["just_saved"] = False
+            total = sum(self.scores.values())
+            st.markdown(f"**合計得点: {total} 点**")
+            # 保存ボタン
+            st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
+            # 保存時トースト
+            if st.session_state.get("just_saved"):
+                st.toast("採点結果を保存しました！", icon="🎉")
+                st.session_state["just_saved"] = False
 
     def _on_save_click(self, total_score: int):
         self._save_scores(total_score)
