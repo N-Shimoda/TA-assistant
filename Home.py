@@ -1,4 +1,5 @@
 import base64
+import csv
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ class SubmissionViewerApp:
         self.selected_assignment = None
         self.selected_student = None
         self.scores = {}
+        self.saved_scores = {}
 
     def _ensure_base_dir(self):
         if not os.path.isdir(self.base_dir):
@@ -41,11 +43,27 @@ class SubmissionViewerApp:
         self.allocation = self._load_allocation(self.root_dir)
 
     def render_student_selection(self):
-        # 学生リスト取得および選択
         self.students = self._list_subdirs(self.root_dir)
-        self.selected_student = st.selectbox(
-            "学生を選択", self.students, key="student_select", format_func=lambda x: x.split("(")[0]
+        if "student_index" not in st.session_state:
+            st.session_state["student_index"] = 0
+        sel = st.selectbox(
+            "学生を選択",
+            self.students,
+            index=st.session_state["student_index"],
+            key="student_select",
+            format_func=lambda x: x.split("(")[0],
         )
+        if sel != self.students[st.session_state["student_index"]]:
+            st.session_state["student_index"] = self.students.index(sel)
+        self.selected_student = self.students[st.session_state["student_index"]]
+        # 既存の採点結果読み込み
+        try:
+            grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+            with open(grades_file, encoding="utf-8") as gf:
+                all_data = json.load(gf)
+            self.saved_scores = all_data.get(self.selected_student, {})
+        except FileNotFoundError:
+            self.saved_scores = {}
 
     def render_main_content(self):
         student_dir = os.path.join(self.root_dir, self.selected_student)
@@ -56,8 +74,8 @@ class SubmissionViewerApp:
 
         col_main, col_grade = st.columns([3, 1])
         with col_main:
-            tabs = st.tabs(["添付ファイル", "提出テキスト"] if pdfs else ["提出テキスト"])
             labels = ["添付ファイル", "提出テキスト"] if pdfs else ["提出テキスト"]
+            tabs = st.tabs(labels)
             for label, tab in zip(labels, tabs):
                 with tab:
                     if label == "提出テキスト":
@@ -80,17 +98,21 @@ class SubmissionViewerApp:
         st.header("採点結果")
         self.scores = {}
 
+        # 深いネスト対応の再帰関数
         def recurse(prefix: str, alloc: dict):
-            # リーフ判定: score/typeキーがある場合
             if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
                 max_score = int(alloc["score"])
+                key = prefix
                 widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
+                prev_val = self.saved_scores.get(key, 0)
                 if alloc["type"] == "partial":
-                    val = st.number_input(prefix, min_value=0, max_value=max_score, step=1, key=widget_key)
+                    val = st.number_input(
+                        prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                    )
                 else:
-                    checked = st.checkbox(prefix, key=widget_key)
+                    checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
                     val = max_score if checked else 0
-                self.scores[prefix] = val
+                self.scores[key] = val
             elif isinstance(alloc, dict):
                 for k, v in alloc.items():
                     new_pref = f"{prefix}_{k}" if prefix else k
@@ -101,12 +123,21 @@ class SubmissionViewerApp:
 
         total = sum(self.scores.values())
         st.markdown(f"**合計得点: {total} 点**")
+        # 保存ボタン
+        st.button("保存", key="save_button", on_click=self._on_save_click, args=(total,))
+        # 保存時トースト
+        if st.session_state.get("just_saved"):
+            st.toast("採点結果を保存しました！次の学生へ移ります", icon="🎉")
+            st.session_state["just_saved"] = False
 
-        if st.button("保存", key="save_button"):
-            self._save_scores()
-            st.success("採点結果を保存しました。")
+    def _on_save_click(self, total_score: int):
+        self._save_scores(total_score)
+        # 次の学生に切り替え
+        st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
+        st.session_state["just_saved"] = True
 
-    def _save_scores(self):
+    def _save_scores(self, total_score: int):
+        # JSON保存
         grades_file = os.path.join(self.root_dir, "detailed_grades.json")
         try:
             with open(grades_file, encoding="utf-8") as gf:
@@ -116,6 +147,24 @@ class SubmissionViewerApp:
         data[self.selected_student] = self.scores
         with open(grades_file, "w", encoding="utf-8") as gf:
             json.dump(data, gf, ensure_ascii=False, indent=2)
+        # CSV更新
+        csv_path = os.path.join(self.root_dir, "grades.csv")
+        student_id = self.selected_student.split("(")[-1].rstrip(")")
+        lines = []
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                lines.append(row)
+        header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
+        header = lines[header_idx]
+        grade_idx = header.index("成績")
+        for i in range(header_idx + 1, len(lines)):
+            if lines[i] and lines[i][0] == student_id:
+                lines[i][grade_idx] = str(total_score)
+                break
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(lines)
 
     def run(self):
         self.render_sidebar()
