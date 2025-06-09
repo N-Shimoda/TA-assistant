@@ -91,34 +91,39 @@ class SubmissionViewerApp:
         # progress bar
         self.display_progress()
 
-    def create_submission_tab(self, pdfs, html_content, attachments_dir):
+    def create_submission_tab(self, pdfs: list, html_content: str | None, attachments_dir: str):
         # create tabs for attachments and text
         labels = []
-        if pdfs:
+        pdf_labels = []
+        if pdfs and len(pdfs) == 1:
             labels.append("添付ファイル")
+        elif pdfs:
+            pdf_labels = [f"添付ファイル : {pdfs.index(fname) + 1}" for fname in pdfs]
+            labels.extend(pdf_labels)
         if html_content:
             labels.append("提出テキスト")
         if not labels:
             st.warning("提出物がありません。", icon="⚠️")
             return
 
-        # create tabs only if there are items to display
         tabs = st.tabs(labels)
-        for label, tab in zip(labels, tabs):
-            with tab:
-                match label:
-                    case "添付ファイル":
-                        fname = pdfs[0]
-                        file_path = os.path.join(attachments_dir, fname)
-                        with open(file_path, "rb") as f:
-                            b64 = base64.b64encode(f.read()).decode("utf-8")
-                        st.subheader(fname)
-                        st.markdown(
-                            f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
-                            unsafe_allow_html=True,
-                        )
-                    case "提出テキスト":
-                        components.html(html_content, height=600, scrolling=True)
+        tab_idx = 0
+        # PDF tabs
+        for fname in pdfs:
+            with tabs[tab_idx]:
+                file_path = os.path.join(attachments_dir, fname)
+                with open(file_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
+                st.subheader(fname)
+                st.markdown(
+                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
+                    unsafe_allow_html=True,
+                )
+            tab_idx += 1
+        # Text tab
+        if html_content:
+            with tabs[tab_idx]:
+                components.html(html_content, height=600, scrolling=True)
 
     def create_grading_tab(self):
         tabs = st.tabs(["採点結果"])
