@@ -88,6 +88,19 @@ class SubmissionViewerApp:
         with col_grade:
             self._render_grading_tab()
 
+        # progress bar
+        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+        try:
+            with open(grades_file, encoding="utf-8") as gf:
+                graded = json.load(gf)
+            graded_count = len(graded)
+        except FileNotFoundError:
+            graded_count = 0
+        total_count = len(self.students)
+        st.markdown("---")
+        st.subheader(f"進捗状況: {graded_count} / {total_count}")
+        st.progress(graded_count / total_count if total_count else 0)
+
     def _render_submission_tab(self, pdfs, html_content, attachments_dir):
         # create tabs for attachments and text
         labels = []
