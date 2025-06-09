@@ -66,33 +66,54 @@ class SubmissionViewerApp:
             self.saved_scores = {}
 
     def render_main_content(self):
+        # load submitted text
         student_dir = os.path.join(self.root_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
+        if htmls:
+            html_content = Path(htmls[0]).read_text(encoding="utf-8").strip()
+        else:
+            html_content = None
+
+        # load attachments
         attachments_dir = os.path.join(student_dir, "提出物の添付ファイル")
         attachments = os.listdir(attachments_dir) if os.path.isdir(attachments_dir) else []
         pdfs = [f for f in attachments if Path(f).suffix.lower() == ".pdf"]
 
+        # display text and attachments
         col_main, col_grade = st.columns([3, 1], border=True)
         with col_main:
-            labels = ["添付ファイル", "提出テキスト"] if pdfs else ["提出テキスト"]
-            tabs = st.tabs(labels)
-            for label, tab in zip(labels, tabs):
-                with tab:
-                    if label == "提出テキスト":
-                        html_path = htmls[0]
-                        components.html(Path(html_path).read_text(encoding="utf-8"), height=600, scrolling=True)
-                    else:
+            self._render_submission_tab(pdfs, html_content, attachments_dir)
+        with col_grade:
+            self._render_grading_tab()
+
+    def _render_submission_tab(self, pdfs, html_content, attachments_dir):
+        # create tabs for attachments and text
+        labels = []
+        if pdfs:
+            labels.append("添付ファイル")
+        if html_content:
+            labels.append("提出テキスト")
+        if not labels:
+            st.warning("提出物がありません。", icon="⚠️")
+            return
+
+        # create tabs only if there are items to display
+        tabs = st.tabs(labels)
+        for label, tab in zip(labels, tabs):
+            with tab:
+                match label:
+                    case "添付ファイル":
                         fname = pdfs[0]
                         file_path = os.path.join(attachments_dir, fname)
                         with open(file_path, "rb") as f:
                             b64 = base64.b64encode(f.read()).decode("utf-8")
                         st.subheader(fname)
                         st.markdown(
-                            f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=800></iframe>',
+                            f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                             unsafe_allow_html=True,
                         )
-        with col_grade:
-            self._render_grading_tab()
+                    case "提出テキスト":
+                        components.html(html_content, height=600, scrolling=True)
 
     def _render_grading_tab(self):
         tabs = st.tabs(["採点結果"])
