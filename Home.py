@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 
 class SubmissionViewerApp:
@@ -93,30 +92,37 @@ class SubmissionViewerApp:
         self.display_progress()
 
     def create_submission_tab(self, pdfs: list, html_content: str | None, attachments_dir: str):
+        """Create tabs for displaying submitted materials."""
         labels = []
-        if pdfs:
+        if pdfs and len(pdfs) > 1:
+            labels.extend([f"添付ファイル : {i + 1}" for i in range(len(pdfs))])
+        elif pdfs:
             labels.append("添付ファイル")
         if html_content:
             labels.append("提出テキスト")
         if not labels:
-            st.warning("提出物がありません。", icon="⚠️")
-            return
+            labels.append("未提出")
 
         tabs = st.tabs(labels)
-        idx = 0
-        if pdfs:
+        # display PDFs
+        for idx, pdf in enumerate(pdfs):
             with tabs[idx]:
-                file_path = os.path.join(attachments_dir, pdfs[0])
+                file_path = os.path.join(attachments_dir, pdf)
                 b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
-                st.subheader(pdfs[0])
+                st.subheader(pdf)
                 st.markdown(
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
                 )
-            idx += 1
+        # submitted texts
         if html_content:
+            idx = labels.index("提出テキスト")
             with tabs[idx]:
-                components.html(html_content, height=600, scrolling=True)
+                st.components.v1.html(html_content, height=600, scrolling=True)
+        # display "未提出" if no submissions
+        if "未提出" in labels:
+            with tabs[-1]:
+                st.warning("課題が未提出です。")
 
     def create_grading_tab(self):
         tabs = st.tabs(["採点結果"])
@@ -149,10 +155,28 @@ class SubmissionViewerApp:
             total = sum(self.scores.values())
             st.markdown(f"**合計得点: {total} 点**")
 
+            st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
             st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
             if st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
                 st.session_state["just_saved"] = False
+
+    @st.dialog("コメントを編集")
+    def _on_edit_comment_click(self):
+        st.write("採点コメントを編集してください。")
+        fname = os.path.join(self.root_dir, self.selected_student, "comments.txt")
+        if os.path.isfile(fname):
+            self.comment_text = Path(fname).read_text(encoding="utf-8")
+            st.write("現在のコメント:")
+            st.components.v1.html(self.comment_text, height=40, scrolling=True)
+        else:
+            self.comment_text = ""
+        self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
+        if st.button("保存"):
+            with open(os.path.join(self.root_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8") as f:
+                f.write("<p>" + self.comment_text + "</p>")
+            st.success("コメントを保存しました！")
+            st.rerun()
 
     def _on_save_click(self, total_score: int):
         self._save_scores(total_score)
