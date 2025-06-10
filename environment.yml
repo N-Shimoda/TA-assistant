@@ -3,5 +3,5 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python
-  - streamlit
+  - python>=3.10
+  - streamlit>=1.45

@@ -1,5 +1,6 @@
 import base64
 import csv
+import datetime
 import json
 import os
 import shutil
@@ -11,28 +12,27 @@ import streamlit as st
 
 class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
+        # directories
+        os.makedirs(base_dir, exist_ok=True)
         self.base_dir = base_dir
         self.root_dir = None
-        self._ensure_base_dir()
 
         # data for each assignment
         self.allocation = {}
         self.students = []
 
-        # data for each student
+        # data for each student (i.e. submission)
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
 
         # initialize selections
-        self.selected_subject = st.session_state.get("subject") if "subject" in st.session_state else None
-        self.selected_assignment = st.session_state.get("assignment") if "assignment" in st.session_state else None
+        self.selected_subject = st.session_state.get("subject")
+        self.selected_assignment = st.session_state.get("assignment")
         self.selected_student = None
 
-        self.subjects = self._list_subdirs(self.base_dir)
-        self.assignments = {
-            subject: self._list_subdirs(os.path.join(self.base_dir, subject)) for subject in self.subjects
-        }
+        subjects = self._list_subdirs(self.base_dir)
+        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
 
     def run(self):
         st.header("提出物ビューア")
@@ -43,21 +43,25 @@ class GradingPage:
         with st.sidebar:
             st.markdown("### 提出物の選択")
             # selecttion of subject and assignment
+            subjects = list(self.assignments.keys())
             self.selected_subject = st.selectbox(
-                "科目", self.subjects, index=self.subjects.index(self.selected_subject), key="subject_select"
+                "科目",
+                subjects,
+                index=subjects.index(self.selected_subject) if self.selected_subject else None,
+                key="subject_select",
             )
-            assignment_li = self.assignments[self.selected_subject]
+            assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
             self.selected_assignment = st.selectbox(
                 "課題名",
                 assignment_li,
-                index=assignment_li.index(self.selected_assignment),
+                index=assignment_li.index(self.selected_assignment) if self.selected_assignment else None,
                 key="assignment_select",
             )
-            self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
-            self.allocation = self._load_allocation(self.root_dir)
-
-            # student
-            self.create_student_selection()
+            if self.selected_assignment:
+                self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
+                self.allocation = self._load_allocation(self.root_dir)
+                # student
+                self.create_student_selection()
 
             # download button
             st.markdown("---")
@@ -103,6 +107,11 @@ class GradingPage:
             self.comment_text = ""
 
     def create_widgets(self):
+        """Create widgets for displaying and grading student submissions."""
+        if not self.root_dir:
+            st.warning("科目と課題を選択してください。")
+            return
+
         student_dir = os.path.join(self.root_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
         html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
@@ -137,7 +146,7 @@ class GradingPage:
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, pdf)
                 b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
-                st.subheader(pdf)
+                st.markdown(f"#### {pdf}")
                 st.markdown(
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
@@ -153,6 +162,7 @@ class GradingPage:
                 st.warning("課題が未提出です。")
 
     def create_grading_tab(self):
+        """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             st.markdown("#### 採点結果")
@@ -164,13 +174,14 @@ class GradingPage:
                     key = prefix
                     widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
                     prev_val = self.saved_scores.get(key, 0)
-                    if alloc["type"] == "partial":
-                        val = st.number_input(
-                            prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
-                        )
-                    else:
-                        checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
-                        val = max_score if checked else 0
+                    match alloc["type"]:
+                        case "partial":
+                            val = st.number_input(
+                                prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                            )
+                        case "full-or-zero":
+                            checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
+                            val = max_score if checked else 0
                     self.scores[key] = val
                 elif isinstance(alloc, dict):
                     for k, v in alloc.items():
@@ -231,15 +242,18 @@ class GradingPage:
                     shutil.copytree(s, d)
                 else:
                     shutil.copy2(s, d)
+
             zip_path = shutil.make_archive(
-                base_name=os.path.join(tmpdir, "grading_result"), format="zip", root_dir=tmpdir
+                base_name=os.path.join(tmpdir, "grading_result"),
+                format="zip",
+                root_dir=tmpdir,
             )
             with open(zip_path, "rb") as f:
                 zip_bytes = f.read()
             st.download_button(
-                label="zipファイルをダウンロード",
+                label="zipファイルを取得",
                 data=zip_bytes,
-                file_name="grading_result.zip",
+                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}.zip",
                 mime="application/zip",
             )
 
@@ -302,11 +316,6 @@ class GradingPage:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerows(lines)
-
-    def _ensure_base_dir(self):
-        if not os.path.isdir(self.base_dir):
-            st.error(f"'{self.base_dir}' ディレクトリが見つかりません。")
-            st.stop()
 
     def _list_subdirs(self, path: str) -> list[str]:
         """
