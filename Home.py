@@ -20,6 +20,7 @@ class SubmissionViewerApp:
         self.selected_student = None
         self.scores = {}
         self.saved_scores = {}
+        self.comment_text = ""
 
     def _ensure_base_dir(self):
         if not os.path.isdir(self.base_dir):
@@ -58,7 +59,7 @@ class SubmissionViewerApp:
                 st.session_state["student_index"] = self.students.index(sel)
             self.selected_student = self.students[st.session_state["student_index"]]
 
-            # load saved scores for the selected student
+            # load saved scores
             try:
                 grades_file = os.path.join(self.root_dir, "detailed_grades.json")
                 with open(grades_file, encoding="utf-8") as gf:
@@ -67,39 +68,34 @@ class SubmissionViewerApp:
             except FileNotFoundError:
                 self.saved_scores = {}
 
+            # load comments as HTML
+            comments_path = os.path.join(self.root_dir, self.selected_student, "comments.txt")
+            if os.path.isfile(comments_path):
+                self.comment_text = Path(comments_path).read_text(encoding="utf-8")
+            else:
+                self.comment_text = ""
+
     def create_widgets(self):
-        # load submitted text
         student_dir = os.path.join(self.root_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
-        if htmls:
-            html_content = Path(htmls[0]).read_text(encoding="utf-8").strip()
-        else:
-            html_content = None
+        html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
 
-        # load attachments
         attachments_dir = os.path.join(student_dir, "提出物の添付ファイル")
         attachments = os.listdir(attachments_dir) if os.path.isdir(attachments_dir) else []
         pdfs = [f for f in attachments if Path(f).suffix.lower() == ".pdf"]
 
-        # display text and attachments
-        col_main, col_grade = st.columns([3, 1], border=True)
+        col_main, col_grade = st.columns([3, 1])
         with col_main:
             self.create_submission_tab(pdfs, html_content, attachments_dir)
         with col_grade:
             self.create_grading_tab()
 
-        # progress bar
         self.display_progress()
 
     def create_submission_tab(self, pdfs: list, html_content: str | None, attachments_dir: str):
-        # create tabs for attachments and text
         labels = []
-        pdf_labels = []
-        if pdfs and len(pdfs) == 1:
+        if pdfs:
             labels.append("添付ファイル")
-        elif pdfs:
-            pdf_labels = [f"添付ファイル : {pdfs.index(fname) + 1}" for fname in pdfs]
-            labels.extend(pdf_labels)
         if html_content:
             labels.append("提出テキスト")
         if not labels:
@@ -107,22 +103,19 @@ class SubmissionViewerApp:
             return
 
         tabs = st.tabs(labels)
-        tab_idx = 0
-        # PDF tabs
-        for fname in pdfs:
-            with tabs[tab_idx]:
-                file_path = os.path.join(attachments_dir, fname)
-                with open(file_path, "rb") as f:
-                    b64 = base64.b64encode(f.read()).decode("utf-8")
-                st.subheader(fname)
+        idx = 0
+        if pdfs:
+            with tabs[idx]:
+                file_path = os.path.join(attachments_dir, pdfs[0])
+                b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
+                st.subheader(pdfs[0])
                 st.markdown(
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
                 )
-            tab_idx += 1
-        # Text tab
+            idx += 1
         if html_content:
-            with tabs[tab_idx]:
+            with tabs[idx]:
                 components.html(html_content, height=600, scrolling=True)
 
     def create_grading_tab(self):
@@ -131,7 +124,6 @@ class SubmissionViewerApp:
             st.subheader("採点結果")
             self.scores = {}
 
-            # 深いネスト対応の再帰関数
             def recurse(prefix: str, alloc: dict):
                 if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
                     max_score = int(alloc["score"])
@@ -156,39 +148,50 @@ class SubmissionViewerApp:
 
             total = sum(self.scores.values())
             st.markdown(f"**合計得点: {total} 点**")
-            # 保存ボタン
+
             st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
-            # 保存時トースト
             if st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
                 st.session_state["just_saved"] = False
 
     def _on_save_click(self, total_score: int):
         self._save_scores(total_score)
-        # 次の学生に切り替え
         st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
         st.session_state["just_saved"] = True
 
     def _save_scores(self, total_score: int):
-        # JSON保存
+        """
+        Save the current scores and comments to files.
+
+        Parameters
+        ----------
+        total_score : int
+            The total score for the selected student.
+        """
+        # save detailed grades to JSON (original file for this app)
         grades_file = os.path.join(self.root_dir, "detailed_grades.json")
         try:
-            with open(grades_file, encoding="utf-8") as gf:
-                data = json.load(gf)
+            with open(grades_file, "r", encoding="utf-8") as gf:
+                data: dict[str, dict] = json.load(gf)
         except FileNotFoundError:
-            data = {}
+            data: dict[str, dict] = {}
         data[self.selected_student] = self.scores
         with open(grades_file, "w", encoding="utf-8") as gf:
             json.dump(data, gf, ensure_ascii=False, indent=2)
-        # CSV更新
+
+        # save overall grades to CSV (official file from PandA)
         csv_path = os.path.join(self.root_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
-        with open(csv_path, newline="", encoding="utf-8") as f:
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             for row in reader:
                 lines.append(row)
-        header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
+        try:
+            header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
+        except StopIteration:
+            st.error("grades.csv に '学生番号' ヘッダー行が見つかりません。ファイル形式を確認してください。")
+            return
         header = lines[header_idx]
         grade_idx = header.index("成績")
         for i in range(header_idx + 1, len(lines)):
@@ -200,6 +203,7 @@ class SubmissionViewerApp:
             writer.writerows(lines)
 
     def display_progress(self):
+        """Display the overall progress of grading."""
         grades_file = os.path.join(self.root_dir, "detailed_grades.json")
         try:
             with open(grades_file, encoding="utf-8") as gf:
