@@ -8,9 +8,10 @@ import streamlit as st
 
 class HomePage:
     def __init__(self, base_dir: str = "assignments"):
+        os.makedirs(base_dir, exist_ok=True)
         self.base_dir = base_dir
         self.subjects = self._list_subdirs(self.base_dir)
-        self.assignents = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in self.subjects}
+        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in self.subjects}
 
         # initialize session states as None
         st.session_state.setdefault("uploaded_assignment")
@@ -26,11 +27,24 @@ class HomePage:
         """Create widgets for the home page."""
         st.header("プロジェクト一覧")
         with st.sidebar:
-            st.subheader("項目設定")
             st.button("新規科目", on_click=self._on_add_subject, icon="🎓")
-            st.button("課題を追加する", on_click=self._on_add_assignment, icon="📚")
+            st.button(
+                "課題を追加する",
+                on_click=self._on_add_assignment,
+                disabled=not bool(self.assignments),
+                icon="📚",
+            )
 
-        for sbj, items in self.assignents.items():
+        # navigation for the first time
+        if not self.assignments:
+            st.markdown(
+                '<span style="color: gray;">科目が登録されていません。サイドバーから新しい科目を追加してください。</span>',
+                unsafe_allow_html=True,
+            )
+            return
+
+        # display subjects and assignments
+        for sbj, items in self.assignments.items():
             st.subheader(sbj, divider="orange")
             if items:
                 for item in items:
@@ -56,14 +70,19 @@ class HomePage:
     @st.dialog("新しい課題を追加")
     def _on_add_assignment(self):
         if self.subjects:
-            st.write("追加する課題の科目を選択してください")
+            st.write("課題の科目を選択してください")
             sbj_name = st.selectbox("科目", self.subjects, key="subject_selection")
         else:
             st.warning("科目が存在しません。先に科目を追加してください。")
             st.rerun()
 
         st.write("アップロード")
-        zip_file = st.file_uploader("課題ファイルをアップロード", type=["zip"], key="assignment_file")
+        zip_file = st.file_uploader(
+            "課題ファイルを選択",
+            type=["zip"],
+            key="assignment_file",
+            help="PandA から課題フォルダをダウンロードし、zip ファイルとしてアップロードして下さい。",
+        )
 
         if zip_file and st.button("追加"):
             # extract assignment title from zip file name

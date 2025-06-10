@@ -11,15 +11,16 @@ import streamlit as st
 
 class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
+        # directories
+        os.makedirs(base_dir, exist_ok=True)
         self.base_dir = base_dir
         self.root_dir = None
-        self._ensure_base_dir()
 
         # data for each assignment
         self.allocation = {}
         self.students = []
 
-        # data for each student
+        # data for each student (i.e. submission)
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
@@ -302,11 +303,6 @@ class GradingPage:
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerows(lines)
-
-    def _ensure_base_dir(self):
-        if not os.path.isdir(self.base_dir):
-            st.error(f"'{self.base_dir}' ディレクトリが見つかりません。")
-            st.stop()
 
     def _list_subdirs(self, path: str) -> list[str]:
         """
