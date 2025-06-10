@@ -2,6 +2,8 @@ import base64
 import csv
 import json
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import streamlit as st
@@ -10,6 +12,7 @@ import streamlit as st
 class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
         self.base_dir = base_dir
+        self.root_dir = None
         self._ensure_base_dir()
 
         # data for each assignment
@@ -30,7 +33,6 @@ class GradingPage:
         self.assignments = {
             subject: self._list_subdirs(os.path.join(self.base_dir, subject)) for subject in self.subjects
         }
-        self.root_dir = None
 
     def run(self):
         st.header("提出物ビューア")
@@ -39,33 +41,48 @@ class GradingPage:
 
     def create_sidebar(self):
         with st.sidebar:
+            st.markdown("### 提出物の選択")
+            # selecttion of subject and assignment
             self.selected_subject = st.selectbox(
-                "科目を選択", self.subjects, index=self.subjects.index(self.selected_subject), key="subject_select"
+                "科目", self.subjects, index=self.subjects.index(self.selected_subject), key="subject_select"
             )
-            # 課題リストを選択中の科目に応じて取得
-            assignment_list = self.assignments.get(self.selected_subject, [])
-            if self.selected_assignment in assignment_list:
-                assignment_index = assignment_list.index(self.selected_assignment)
-            else:
-                assignment_index = 0
+            assignment_li = self.assignments[self.selected_subject]
             self.selected_assignment = st.selectbox(
-                "課題を選択",
-                assignment_list,
-                index=assignment_index,
+                "課題名",
+                assignment_li,
+                index=assignment_li.index(self.selected_assignment),
                 key="assignment_select",
             )
             self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
             self.allocation = self._load_allocation(self.root_dir)
 
-            # student selection
+            # student
             self.create_student_selection()
+
+            # download button
+            st.markdown("---")
+            st.markdown("### ダウンロード")
+            if st.button("採点結果をダウンロード", key="download_grades"):
+                # 一時ディレクトリにzip作成
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    zip_path = shutil.make_archive(
+                        base_name=os.path.join(tmpdir, "grading_result"), format="zip", root_dir=self.root_dir
+                    )
+                    with open(zip_path, "rb") as f:
+                        zip_bytes = f.read()
+                    st.download_button(
+                        label="zipファイルをダウンロード",
+                        data=zip_bytes,
+                        file_name="grading_result.zip",
+                        mime="application/zip",
+                    )
 
     def create_student_selection(self):
         self.students = self._list_subdirs(self.root_dir)
         if "student_index" not in st.session_state:
             st.session_state["student_index"] = 0
         sel = st.selectbox(
-            "学生を選択",
+            "学生氏名",
             self.students,
             index=st.session_state["student_index"],
             key="student_select",
