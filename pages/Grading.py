@@ -62,20 +62,14 @@ class GradingPage:
             # download button
             st.markdown("---")
             st.markdown("### ダウンロード")
+            include_json = st.checkbox(
+                "アプリ固有のjsonファイルを含める",
+                value=True,
+                key="include_json_files",
+                help="PandA へアップロードする場合は、チェックを外してください",
+            )
             if st.button("採点結果をダウンロード", key="download_grades"):
-                # 一時ディレクトリにzip作成
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    zip_path = shutil.make_archive(
-                        base_name=os.path.join(tmpdir, "grading_result"), format="zip", root_dir=self.root_dir
-                    )
-                    with open(zip_path, "rb") as f:
-                        zip_bytes = f.read()
-                    st.download_button(
-                        label="zipファイルをダウンロード",
-                        data=zip_bytes,
-                        file_name="grading_result.zip",
-                        mime="application/zip",
-                    )
+                self._on_download_click(include_json)
 
     def create_student_selection(self):
         self.students = self._list_subdirs(self.root_dir)
@@ -216,6 +210,38 @@ class GradingPage:
         st.divider()
         st.markdown(f"#### 進捗状況: {graded_count} / {total_count}")
         st.progress(graded_count / total_count if total_count else 0)
+
+    def _on_download_click(self, include_json: bool):
+        """
+        Create a zip file of the assignment directory and provide a download button in Streamlit.
+
+        Parameters
+        ----------
+        include_json : bool
+            If True, include app-specific JSON files (detailed_grades.json, allocation.json) in the zip archive.
+            If False, exclude these files from the archive (for PandA upload, etc).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for item in os.listdir(self.root_dir):
+                s = os.path.join(self.root_dir, item)
+                d = os.path.join(tmpdir, item)
+                if not include_json and item in ["detailed_grades.json", "allocation.json"]:
+                    continue
+                if os.path.isdir(s):
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+            zip_path = shutil.make_archive(
+                base_name=os.path.join(tmpdir, "grading_result"), format="zip", root_dir=tmpdir
+            )
+            with open(zip_path, "rb") as f:
+                zip_bytes = f.read()
+            st.download_button(
+                label="zipファイルをダウンロード",
+                data=zip_bytes,
+                file_name="grading_result.zip",
+                mime="application/zip",
+            )
 
     @st.dialog("コメントを編集")
     def _on_edit_comment_click(self):
