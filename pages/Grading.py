@@ -14,35 +14,25 @@ class GradingPage:
         self.subjects = self._list_subdirs(self.base_dir)
         self.assignments = self._list_subdirs(os.path.join(base_dir, self.subjects[0])) if self.subjects else []
         self.root_dir = None
+
+        # data for each assignment
         self.allocation = {}
         self.students = []
-        self.selected_assignment = None
-        self.selected_subject = None
-        self.selected_student = None
+
+        # data for each student
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
+
+        # initialize selections
+        self.selected_subject = st.session_state.get("subject") if "subject" in st.session_state else None
+        self.selected_assignment = st.session_state.get("assignment") if "assignment" in st.session_state else None
+        self.selected_student = None
 
     def _ensure_base_dir(self):
         if not os.path.isdir(self.base_dir):
             st.error(f"'{self.base_dir}' ディレクトリが見つかりません。")
             st.stop()
-
-    def _list_subdirs(self, path: str) -> list[str]:
-        """
-        List all subdirectories in the given path.
-
-        Parameters
-        ----------
-        path : str
-            The directory path to list subdirectories from.
-
-        Returns
-        -------
-        list[str]
-            A sorted list of subdirectory names, or None if the path does not exist or is not a directory.
-        """
-        return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
     def _load_allocation(self, path: str):
         alloc_file = os.path.join(path, "allocation.json")
@@ -54,9 +44,14 @@ class GradingPage:
     def create_sidebar(self):
         with st.sidebar:
             self.selected_subject = st.selectbox(
-                "科目を選択", self.subjects, index=0 if self.subjects else -1, key="subject_select"
+                "科目を選択", self.subjects, index=self.subjects.index(self.selected_subject), key="subject_select"
             )
-            self.selected_assignment = st.selectbox("課題を選択", self.assignments, key="assignment_select")
+            self.selected_assignment = st.selectbox(
+                "課題を選択",
+                self.assignments,
+                index=self.assignments.index(self.selected_assignment),
+                key="assignment_select",
+            )
             self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
             self.allocation = self._load_allocation(self.root_dir)
 
@@ -262,6 +257,22 @@ class GradingPage:
         self.create_sidebar()
         self.render_student_selection()
         self.create_widgets()
+
+    def _list_subdirs(self, path: str) -> list[str]:
+        """
+        List all subdirectories in the given path.
+
+        Parameters
+        ----------
+        path : str
+            The directory path to list subdirectories from.
+
+        Returns
+        -------
+        list[str]
+            A sorted list of subdirectory names, or None if the path does not exist or is not a directory.
+        """
+        return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
 
 if __name__ == "__main__":

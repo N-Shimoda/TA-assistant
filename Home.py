@@ -12,27 +12,38 @@ class HomePage:
         self.subjects = self._list_subdirs(self.base_dir)
         self.assignents = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in self.subjects}
 
-        # initialize session states
-        st.session_state.setdefault("uploaded_assignment", None)
+        # initialize session states as None
+        st.session_state.setdefault("uploaded_assignment")
+        st.session_state.setdefault("subject")
+        st.session_state.setdefault("assignment")
+
         if st.session_state.get("uploaded_assignment"):
             title = st.session_state["uploaded_assignment"]
-            st.toast(f"課題「{title}」を追加しました。")
+            st.toast(f"課題「{title}」を追加しました。", icon="✅")
             st.session_state["uploaded_assignment"] = None
 
-    def display(self):
-        st.header("Home Page")
+    def create_widgets(self):
+        """Create widgets for the home page."""
+        st.header("プロジェクト一覧")
         with st.sidebar:
-            st.subheader("プロジェクト設定")
+            st.subheader("項目設定")
             st.button("新規科目", on_click=self._on_add_subject, icon="🎓")
             st.button("課題を追加する", on_click=self._on_add_assignment, icon="📚")
 
         for sbj, items in self.assignents.items():
-            st.subheader(sbj)
+            st.subheader(sbj, divider="orange")
             if items:
                 for item in items:
-                    st.page_link("pages/Grading.py", label=item)
+                    if st.button(
+                        item,
+                        key=f"{sbj}_{item}",
+                        type="tertiary",
+                    ):
+                        st.session_state["subject"] = sbj
+                        st.session_state["assignment"] = item
+                        st.switch_page("pages/Grading.py")
             else:
-                st.markdown("No assignments found.")
+                st.markdown("課題がありません。")
 
     @st.dialog("新しい科目を追加")
     def _on_add_subject(self):
@@ -119,4 +130,4 @@ class HomePage:
 if __name__ == "__main__":
     st.set_page_config(page_title="ホーム", layout="wide")
     home_page = HomePage()
-    home_page.display()
+    home_page.create_widgets()
