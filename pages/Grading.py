@@ -146,7 +146,7 @@ class GradingPage:
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, pdf)
                 b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
-                st.subheader(pdf)
+                st.markdown(f"#### {pdf}")
                 st.markdown(
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
@@ -174,13 +174,14 @@ class GradingPage:
                     key = prefix
                     widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
                     prev_val = self.saved_scores.get(key, 0)
-                    if alloc["type"] == "partial":
-                        val = st.number_input(
-                            prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
-                        )
-                    else:
-                        checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
-                        val = max_score if checked else 0
+                    match alloc["type"]:
+                        case "partial":
+                            val = st.number_input(
+                                prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                            )
+                        case "full-or-zero":
+                            checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
+                            val = max_score if checked else 0
                     self.scores[key] = val
                 elif isinstance(alloc, dict):
                     for k, v in alloc.items():
