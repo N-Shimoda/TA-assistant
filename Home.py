@@ -155,7 +155,12 @@ class SubmissionViewerApp:
             total = sum(self.scores.values())
             st.markdown(f"**合計得点: {total} 点**")
 
+            # display comments
+            st.subheader("コメント")
+            st.markdown(self.comment_text if self.comment_text else "コメントはありません。")
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
+
+            # save button
             st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
             if st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
@@ -164,13 +169,8 @@ class SubmissionViewerApp:
     @st.dialog("コメントを編集")
     def _on_edit_comment_click(self):
         st.write("採点コメントを編集してください。")
-        fname = os.path.join(self.root_dir, self.selected_student, "comments.txt")
-        if os.path.isfile(fname):
-            self.comment_text = Path(fname).read_text(encoding="utf-8")
-            st.write("現在のコメント:")
+        if self.comment_text:
             st.components.v1.html(self.comment_text, height=40, scrolling=True)
-        else:
-            self.comment_text = ""
         self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
         if st.button("保存"):
             with open(os.path.join(self.root_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8") as f:
