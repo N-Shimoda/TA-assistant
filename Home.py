@@ -43,7 +43,7 @@ class HomePage:
                         st.session_state["assignment"] = item
                         st.switch_page("pages/Grading.py")
             else:
-                st.markdown("課題がありません。")
+                st.markdown('<span style="color: gray;">課題がありません。</span>', unsafe_allow_html=True)
 
     @st.dialog("新しい科目を追加")
     def _on_add_subject(self):

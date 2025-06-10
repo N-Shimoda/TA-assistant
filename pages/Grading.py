@@ -11,9 +11,6 @@ class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
         self.base_dir = base_dir
         self._ensure_base_dir()
-        self.subjects = self._list_subdirs(self.base_dir)
-        self.assignments = self._list_subdirs(os.path.join(base_dir, self.subjects[0])) if self.subjects else []
-        self.root_dir = None
 
         # data for each assignment
         self.allocation = {}
@@ -29,63 +26,70 @@ class GradingPage:
         self.selected_assignment = st.session_state.get("assignment") if "assignment" in st.session_state else None
         self.selected_student = None
 
-    def _ensure_base_dir(self):
-        if not os.path.isdir(self.base_dir):
-            st.error(f"'{self.base_dir}' ディレクトリが見つかりません。")
-            st.stop()
+        self.subjects = self._list_subdirs(self.base_dir)
+        self.assignments = {
+            subject: self._list_subdirs(os.path.join(self.base_dir, subject)) for subject in self.subjects
+        }
+        self.root_dir = None
 
-    def _load_allocation(self, path: str):
-        alloc_file = os.path.join(path, "allocation.json")
-        if os.path.isfile(alloc_file):
-            with open(alloc_file, encoding="utf-8") as f:
-                return json.load(f)
-        return {}
+    def run(self):
+        st.header("提出物ビューア")
+        self.create_sidebar()
+        self.create_widgets()
 
     def create_sidebar(self):
         with st.sidebar:
             self.selected_subject = st.selectbox(
                 "科目を選択", self.subjects, index=self.subjects.index(self.selected_subject), key="subject_select"
             )
+            # 課題リストを選択中の科目に応じて取得
+            assignment_list = self.assignments.get(self.selected_subject, [])
+            if self.selected_assignment in assignment_list:
+                assignment_index = assignment_list.index(self.selected_assignment)
+            else:
+                assignment_index = 0
             self.selected_assignment = st.selectbox(
                 "課題を選択",
-                self.assignments,
-                index=self.assignments.index(self.selected_assignment),
+                assignment_list,
+                index=assignment_index,
                 key="assignment_select",
             )
             self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
             self.allocation = self._load_allocation(self.root_dir)
 
-    def render_student_selection(self):
-        with st.sidebar:
-            self.students = self._list_subdirs(self.root_dir)
-            if "student_index" not in st.session_state:
-                st.session_state["student_index"] = 0
-            sel = st.selectbox(
-                "学生を選択",
-                self.students,
-                index=st.session_state["student_index"],
-                key="student_select",
-                format_func=lambda x: x.split("(")[0],
-            )
-            if sel != self.students[st.session_state["student_index"]]:
-                st.session_state["student_index"] = self.students.index(sel)
-            self.selected_student = self.students[st.session_state["student_index"]]
+            # student selection
+            self.create_student_selection()
 
-            # load saved scores
-            try:
-                grades_file = os.path.join(self.root_dir, "detailed_grades.json")
-                with open(grades_file, encoding="utf-8") as gf:
-                    all_data = json.load(gf)
-                self.saved_scores = all_data.get(self.selected_student, {})
-            except FileNotFoundError:
-                self.saved_scores = {}
+    def create_student_selection(self):
+        self.students = self._list_subdirs(self.root_dir)
+        if "student_index" not in st.session_state:
+            st.session_state["student_index"] = 0
+        sel = st.selectbox(
+            "学生を選択",
+            self.students,
+            index=st.session_state["student_index"],
+            key="student_select",
+            format_func=lambda x: x.split("(")[0],
+        )
+        if sel != self.students[st.session_state["student_index"]]:
+            st.session_state["student_index"] = self.students.index(sel)
+        self.selected_student = self.students[st.session_state["student_index"]]
 
-            # load comments as HTML
-            comments_path = os.path.join(self.root_dir, self.selected_student, "comments.txt")
-            if os.path.isfile(comments_path):
-                self.comment_text = Path(comments_path).read_text(encoding="utf-8")
-            else:
-                self.comment_text = ""
+        # load saved scores
+        try:
+            grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+            with open(grades_file, encoding="utf-8") as gf:
+                all_data = json.load(gf)
+            self.saved_scores = all_data.get(self.selected_student, {})
+        except FileNotFoundError:
+            self.saved_scores = {}
+
+        # load comments as HTML
+        comments_path = os.path.join(self.root_dir, self.selected_student, "comments.txt")
+        if os.path.isfile(comments_path):
+            self.comment_text = Path(comments_path).read_text(encoding="utf-8")
+        else:
+            self.comment_text = ""
 
     def create_widgets(self):
         student_dir = os.path.join(self.root_dir, self.selected_student)
@@ -140,7 +144,7 @@ class GradingPage:
     def create_grading_tab(self):
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
-            st.subheader("採点結果")
+            st.markdown("#### 採点結果")
             self.scores = {}
 
             def recurse(prefix: str, alloc: dict):
@@ -169,8 +173,11 @@ class GradingPage:
             st.markdown(f"**合計得点: {total} 点**")
 
             # display comments
-            st.subheader("コメント")
-            st.markdown(self.comment_text if self.comment_text else "コメントはありません。")
+            st.markdown("#### コメント")
+            if self.comment_text:
+                st.html(self.comment_text)
+            else:
+                st.markdown('<span style="color: gray;">コメントはありません。</span>', unsafe_allow_html=True)
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
 
             # save button
@@ -178,6 +185,20 @@ class GradingPage:
             if st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
                 st.session_state["just_saved"] = False
+
+    def display_progress(self):
+        """Display the overall progress of grading."""
+        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+        try:
+            with open(grades_file, encoding="utf-8") as gf:
+                graded = json.load(gf)
+            graded_count = len(graded)
+        except FileNotFoundError:
+            graded_count = 0
+        total_count = len(self.students)
+        st.divider()
+        st.markdown(f"#### 進捗状況: {graded_count} / {total_count}")
+        st.progress(graded_count / total_count if total_count else 0)
 
     @st.dialog("コメントを編集")
     def _on_edit_comment_click(self):
@@ -239,24 +260,10 @@ class GradingPage:
             writer = csv.writer(f)
             writer.writerows(lines)
 
-    def display_progress(self):
-        """Display the overall progress of grading."""
-        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
-        try:
-            with open(grades_file, encoding="utf-8") as gf:
-                graded = json.load(gf)
-            graded_count = len(graded)
-        except FileNotFoundError:
-            graded_count = 0
-        total_count = len(self.students)
-        st.markdown("---")
-        st.subheader(f"進捗状況: {graded_count} / {total_count}")
-        st.progress(graded_count / total_count if total_count else 0)
-
-    def run(self):
-        self.create_sidebar()
-        self.render_student_selection()
-        self.create_widgets()
+    def _ensure_base_dir(self):
+        if not os.path.isdir(self.base_dir):
+            st.error(f"'{self.base_dir}' ディレクトリが見つかりません。")
+            st.stop()
 
     def _list_subdirs(self, path: str) -> list[str]:
         """
@@ -273,6 +280,13 @@ class GradingPage:
             A sorted list of subdirectory names, or None if the path does not exist or is not a directory.
         """
         return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
+
+    def _load_allocation(self, path: str):
+        alloc_file = os.path.join(path, "allocation.json")
+        if os.path.isfile(alloc_file):
+            with open(alloc_file, encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
 
 if __name__ == "__main__":
