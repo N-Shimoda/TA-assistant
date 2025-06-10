@@ -5,7 +5,7 @@
 
 ![grading-view](assets/grading-view-v1.0.png)
 
-## 利用方法
+## 起動方法
 
 ### 1. Python 環境の構築
 
@@ -16,10 +16,72 @@ conda env create -f environment.yml
 conda activate app-ta
 ```
 
-### 2. アプリの起動
+### 2. Web アプリの実行
 
 コマンドを実行し、ブラウザから [localhost:8501](http://localhost:8501) にアクセスする
 
 ```shell
 streamlit run Home.py
 ```
+
+## 採点フロー
+
+### 1. PandA から課題のデータをダウンロードする
+- PandA の課題ページで「すべてダウンロード」を実行し、PC に課題のデータをダウンロードする。
+- 成績ファイルの形式は CSV (`grades.csv`) を選択。
+
+### 2. アプリに課題データをアップロードする
+- [localhost:8501](http://localhost:8501) にアクセスし、実行中のアプリをブラウザで開く
+- 1. でダウンロードしたフォルダを zip に圧縮しておき、**Home** >「課題を追加する」のボタンからアップロードする。
+
+### 3. 配点の決定、採点
+1. `assignemts/課題名/allocation.json` というファイルを作成し、配点を定義する。
+2. Webアプリ上で採点する。
+
+JSON ファイルの例：
+
+```json
+{
+  "問1": {
+    "(1)": {
+      "(ア)": {
+        "type": "full-or-zero",  # 部分点なし, チェックボックスでの採点
+        "score": 10
+      },
+      "(イ)": {
+        "type": "full-or-zero",
+        "score": 10
+      },
+      "(ウ)": {
+        "type": "full-or-zero",
+        "score": 10
+      }
+    },
+    "(2)": {
+      "type": "full-or-zero",
+      "score": 16
+    }
+  },
+  "問2": {
+    "(a)": {
+      "type": "full-or-zero",
+      "score": 10
+    },
+    "(b)": {
+      "type": "full-or-zero",
+      "score": 10
+    }
+  },
+  "問3": {
+    "type": "partial",  # 部分点あり. 点数の記入による numerical な採点
+    "score": 32
+  }
+}
+```
+
+### 4. 採点結果のダウンロード、PandA への反映
+- サイドバーの「採点結果をダウンロード」のボタンから、**JSON ファイルを含めずに**データをダウンロードする。
+- PandA の課題採点ページに戻り、「すべてアップロード」から採点済みの zip ファイルをアップロードする（`grading_result_*.csv`）。
+
+> [!IMPORTANT]
+> zip ファイルを PandA にアップロードする際、既存の提出物を上書き／削除しないよう、**「受講者の提出テキスト」「受講者の提出物の添付」からチェックを外した方が良い。**
