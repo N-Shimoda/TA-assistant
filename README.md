@@ -1,4 +1,5 @@
-# TA-assistant
+<h1 align="center">TA-assistant for PandA</h1>
+
 > [!NOTE]
 > PandA の課題を快適に採点するための Web アプリ。
 
