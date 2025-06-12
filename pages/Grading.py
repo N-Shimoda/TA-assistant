@@ -309,8 +309,10 @@ class GradingPage:
                 else:
                     shutil.copy2(s, d)
 
+            basename = f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}"
             zip_path = shutil.make_archive(
-                base_name=os.path.join(tmpdir, "grading_result"),
+                # base_name=os.path.join(tmpdir, basename),
+                base_name=basename,
                 format="zip",
                 root_dir=tmpdir,
             )
@@ -319,8 +321,9 @@ class GradingPage:
             st.download_button(
                 label="zipファイルを取得",
                 data=zip_bytes,
-                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}.zip",
+                file_name=f"{basename}.zip",
                 mime="application/zip",
+                type="primary",
             )
 
     @st.dialog("コメントを編集")
