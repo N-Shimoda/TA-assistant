@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import streamlit as st
+from PIL import ExifTags, Image
 
 
 class GradingPage:
@@ -68,7 +69,6 @@ class GradingPage:
             st.markdown("### ダウンロード")
             include_json = st.checkbox(
                 "アプリ固有のjsonファイルを含める",
-                value=True,
                 key="include_json_files",
                 help="PandA へアップロードする場合は、チェックを外してください",
             )
@@ -117,29 +117,56 @@ class GradingPage:
         html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
 
         attachments_dir = os.path.join(student_dir, "提出物の添付ファイル")
-        attachments = os.listdir(attachments_dir) if os.path.isdir(attachments_dir) else []
-        pdfs = [f for f in attachments if Path(f).suffix.lower() == ".pdf"]
+        attachments = sorted(os.listdir(attachments_dir)) if os.path.isdir(attachments_dir) else []
 
         col_main, col_grade = st.columns([3, 1], border=True)
         with col_main:
-            self.create_submission_tab(pdfs, html_content, attachments_dir)
+            self.create_submission_tab(attachments, html_content, attachments_dir)
         with col_grade:
             self.create_grading_tab()
 
         self.display_progress()
 
-    def create_submission_tab(self, pdfs: list, html_content: str | None, attachments_dir: str):
-        """Create tabs for displaying submitted materials."""
+    def create_submission_tab(self, attachments: list[str], html_content: str | None, attachments_dir: str):
+        """
+        Create tabs for displaying submitted materials.
+
+        Parameters
+        ----------
+        attachments : list[str]
+            List of attachment file names submitted by the student.
+        """
+        # organize attachments by type
+        pdfs, images, others = [], [], []
+        for f in attachments:
+            ext = Path(f).suffix.lower()
+            match ext:
+                case ".pdf":
+                    pdfs.append(f)
+                case ".jpg" | ".jpeg" | ".png":
+                    images.append(f)
+                case _:
+                    others.append(f)
+        print(f"PDFs: {pdfs}, Images: {images}, Others: {others}")
+
+        # Configure labels for tabs
         labels = []
         if pdfs and len(pdfs) > 1:
             labels.extend([f"添付ファイル : {i + 1}" for i in range(len(pdfs))])
         elif pdfs:
             labels.append("添付ファイル")
+        if images and len(images) > 1:
+            labels.extend([f"画像ファイル : {i + 1}" for i in range(len(images))])
+        elif images:
+            labels.append("画像ファイル")
+        if others:
+            labels.append("その他のファイル")
         if html_content:
             labels.append("提出テキスト")
         if not labels:
             labels.append("未提出")
 
+        # Create tabs for each type of attachment
         tabs = st.tabs(labels)
         # display PDFs
         for idx, pdf in enumerate(pdfs):
@@ -151,6 +178,41 @@ class GradingPage:
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
                 )
+        # display images
+        for idx, img in enumerate(images, start=len(pdfs)):
+            with tabs[idx]:
+                file_path = os.path.join(attachments_dir, img)
+                st.markdown(f"#### {img}")
+                ext = Path(img).suffix.lower()
+                if ext in [".jpg", ".jpeg"]:
+                    try:
+                        image = Image.open(file_path)
+                        # check and apply EXIF orientation
+                        exif = image._getexif()
+                        if exif is not None:
+                            orientation_key = next((k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None)
+                            if orientation_key and orientation_key in exif:
+                                orientation = exif[orientation_key]
+                            if orientation == 3:
+                                image = image.rotate(180, expand=True)
+                            elif orientation == 6:
+                                image = image.rotate(270, expand=True)
+                            elif orientation == 8:
+                                image = image.rotate(90, expand=True)
+                        st.image(image, use_container_width=True, caption=img)
+                    except Exception as e:
+                        # show the original image if rotation fails
+                        st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
+                        st.image(file_path, use_container_width=True, caption=img)
+                else:
+                    st.image(file_path, use_container_width=True, caption=img)
+        # display other files
+        if others:
+            with tabs[len(pdfs) + len(images)]:
+                st.markdown("#### その他のファイル")
+                for other in others:
+                    file_path = os.path.join(attachments_dir, other)
+                    st.markdown(f"- [{other}]({file_path})")
         # submitted texts
         if html_content:
             idx = labels.index("提出テキスト")
