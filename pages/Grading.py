@@ -149,7 +149,6 @@ class GradingPage:
                     images.append(f)
                 case _:
                     others.append(f)
-        print(f"PDFs: {pdfs}, Images: {images}, Others: {others}")
 
         # Configure labels for tabs
         labels = []
@@ -214,12 +213,12 @@ class GradingPage:
                 st.markdown("#### その他のファイル")
                 for other in others:
                     file_path = os.path.join(attachments_dir, other)
-                    st.markdown(f"- [{other}]({file_path})")
+                    st.markdown(f"- [{other}](`{file_path}`)")
         # submitted texts
         if html_content:
             idx = labels.index("提出テキスト")
             with tabs[idx]:
-                st.components.v1.html(html_content, height=600, scrolling=True)
+                st.components.v1.html(html_content, height=720, scrolling=True)
         # display "未提出" if no submissions
         if "未提出" in labels:
             with tabs[-1]:
@@ -232,6 +231,7 @@ class GradingPage:
             st.markdown("#### 採点結果")
             self.scores = {}
 
+            @st.fragment
             def recurse(prefix: str, alloc: dict):
                 suffix = prefix.split("_")[-1]
                 if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
@@ -325,7 +325,7 @@ class GradingPage:
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}.zip",
+                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
