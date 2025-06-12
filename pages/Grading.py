@@ -1,10 +1,12 @@
 import base64
 import csv
 import datetime
+import io
 import json
 import os
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 
 import streamlit as st
@@ -310,17 +312,19 @@ class GradingPage:
                     shutil.copy2(s, d)
 
             basename = f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}"
-            zip_path = shutil.make_archive(
-                # base_name=os.path.join(tmpdir, basename),
-                base_name=basename,
-                format="zip",
-                root_dir=tmpdir,
-            )
-            with open(zip_path, "rb") as f:
-                zip_bytes = f.read()
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for root, dirs, files in os.walk(tmpdir):
+                    print(root, dirs)
+                    for file in files:
+                        print("\t- " + file)
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, tmpdir)
+                        zip_file.write(file_path, arcname)
+
             st.download_button(
                 label="zipファイルを取得",
-                data=zip_bytes,
+                data=buffer.getvalue(),
                 file_name=f"{basename}.zip",
                 mime="application/zip",
                 type="primary",
