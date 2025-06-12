@@ -231,6 +231,7 @@ class GradingPage:
             self.scores = {}
 
             def recurse(prefix: str, alloc: dict):
+                suffix = prefix.split("_")[-1]
                 if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
                     max_score = int(alloc["score"])
                     key = prefix
@@ -239,16 +240,19 @@ class GradingPage:
                     match alloc["type"]:
                         case "partial":
                             val = st.number_input(
-                                prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                                suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
                             )
                         case "full-or-zero":
-                            checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
+                            checked = st.checkbox(suffix, value=(prev_val == max_score), key=widget_key)
                             val = max_score if checked else 0
                     self.scores[key] = val
                 elif isinstance(alloc, dict):
+                    st.markdown(prefix)
                     for k, v in alloc.items():
                         new_pref = f"{prefix}_{k}" if prefix else k
                         recurse(new_pref, v)
+                else:
+                    st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
 
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
