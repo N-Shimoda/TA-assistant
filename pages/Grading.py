@@ -1,13 +1,16 @@
 import base64
 import csv
 import datetime
+import io
 import json
 import os
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 
 import streamlit as st
+from PIL import ExifTags, Image
 
 
 class GradingPage:
@@ -68,7 +71,6 @@ class GradingPage:
             st.markdown("### ダウンロード")
             include_json = st.checkbox(
                 "アプリ固有のjsonファイルを含める",
-                value=True,
                 key="include_json_files",
                 help="PandA へアップロードする場合は、チェックを外してください",
             )
@@ -117,29 +119,55 @@ class GradingPage:
         html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
 
         attachments_dir = os.path.join(student_dir, "提出物の添付ファイル")
-        attachments = os.listdir(attachments_dir) if os.path.isdir(attachments_dir) else []
-        pdfs = [f for f in attachments if Path(f).suffix.lower() == ".pdf"]
+        attachments = sorted(os.listdir(attachments_dir)) if os.path.isdir(attachments_dir) else []
 
         col_main, col_grade = st.columns([3, 1], border=True)
         with col_main:
-            self.create_submission_tab(pdfs, html_content, attachments_dir)
+            self.create_submission_tab(attachments, html_content, attachments_dir)
         with col_grade:
             self.create_grading_tab()
 
         self.display_progress()
 
-    def create_submission_tab(self, pdfs: list, html_content: str | None, attachments_dir: str):
-        """Create tabs for displaying submitted materials."""
+    def create_submission_tab(self, attachments: list[str], html_content: str | None, attachments_dir: str):
+        """
+        Create tabs for displaying submitted materials.
+
+        Parameters
+        ----------
+        attachments : list[str]
+            List of attachment file names submitted by the student.
+        """
+        # organize attachments by type
+        pdfs, images, others = [], [], []
+        for f in attachments:
+            ext = Path(f).suffix.lower()
+            match ext:
+                case ".pdf":
+                    pdfs.append(f)
+                case ".jpg" | ".jpeg" | ".png":
+                    images.append(f)
+                case _:
+                    others.append(f)
+
+        # Configure labels for tabs
         labels = []
         if pdfs and len(pdfs) > 1:
             labels.extend([f"添付ファイル : {i + 1}" for i in range(len(pdfs))])
         elif pdfs:
             labels.append("添付ファイル")
+        if images and len(images) > 1:
+            labels.extend([f"画像ファイル : {i + 1}" for i in range(len(images))])
+        elif images:
+            labels.append("画像ファイル")
+        if others:
+            labels.append("その他のファイル")
         if html_content:
             labels.append("提出テキスト")
         if not labels:
             labels.append("未提出")
 
+        # Create tabs for each type of attachment
         tabs = st.tabs(labels)
         # display PDFs
         for idx, pdf in enumerate(pdfs):
@@ -151,11 +179,46 @@ class GradingPage:
                     f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
                     unsafe_allow_html=True,
                 )
+        # display images
+        for idx, img in enumerate(images, start=len(pdfs)):
+            with tabs[idx]:
+                file_path = os.path.join(attachments_dir, img)
+                st.markdown(f"#### {img}")
+                ext = Path(img).suffix.lower()
+                if ext in [".jpg", ".jpeg"]:
+                    try:
+                        image = Image.open(file_path)
+                        # check and apply EXIF orientation
+                        exif = image._getexif()
+                        if exif is not None:
+                            orientation_key = next((k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None)
+                            if orientation_key and orientation_key in exif:
+                                orientation = exif[orientation_key]
+                            if orientation == 3:
+                                image = image.rotate(180, expand=True)
+                            elif orientation == 6:
+                                image = image.rotate(270, expand=True)
+                            elif orientation == 8:
+                                image = image.rotate(90, expand=True)
+                        st.image(image, use_container_width=True, caption=img)
+                    except Exception as e:
+                        # show the original image if rotation fails
+                        st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
+                        st.image(file_path, use_container_width=True, caption=img)
+                else:
+                    st.image(file_path, use_container_width=True, caption=img)
+        # display other files
+        if others:
+            with tabs[len(pdfs) + len(images)]:
+                st.markdown("#### その他のファイル")
+                for other in others:
+                    file_path = os.path.join(attachments_dir, other)
+                    st.markdown(f"- [{other}](`{file_path}`)")
         # submitted texts
         if html_content:
             idx = labels.index("提出テキスト")
             with tabs[idx]:
-                st.components.v1.html(html_content, height=600, scrolling=True)
+                st.components.v1.html(html_content, height=720, scrolling=True)
         # display "未提出" if no submissions
         if "未提出" in labels:
             with tabs[-1]:
@@ -168,7 +231,9 @@ class GradingPage:
             st.markdown("#### 採点結果")
             self.scores = {}
 
+            @st.fragment
             def recurse(prefix: str, alloc: dict):
+                suffix = prefix.split("_")[-1]
                 if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
                     max_score = int(alloc["score"])
                     key = prefix
@@ -177,16 +242,19 @@ class GradingPage:
                     match alloc["type"]:
                         case "partial":
                             val = st.number_input(
-                                prefix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                                suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
                             )
                         case "full-or-zero":
-                            checked = st.checkbox(prefix, value=(prev_val == max_score), key=widget_key)
+                            checked = st.checkbox(suffix, value=(prev_val == max_score), key=widget_key)
                             val = max_score if checked else 0
                     self.scores[key] = val
                 elif isinstance(alloc, dict):
+                    st.markdown(prefix)
                     for k, v in alloc.items():
                         new_pref = f"{prefix}_{k}" if prefix else k
                         recurse(new_pref, v)
+                else:
+                    st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
 
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
@@ -233,6 +301,7 @@ class GradingPage:
             If False, exclude these files from the archive (for PandA upload, etc).
         """
         with tempfile.TemporaryDirectory() as tmpdir:
+            # create temp directory (w/ or w/o app-specific JSON files)
             for item in os.listdir(self.root_dir):
                 s = os.path.join(self.root_dir, item)
                 d = os.path.join(tmpdir, item)
@@ -243,18 +312,22 @@ class GradingPage:
                 else:
                     shutil.copy2(s, d)
 
-            zip_path = shutil.make_archive(
-                base_name=os.path.join(tmpdir, "grading_result"),
-                format="zip",
-                root_dir=tmpdir,
-            )
-            with open(zip_path, "rb") as f:
-                zip_bytes = f.read()
+            # zip the temp directory
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for root, _, files in os.walk(tmpdir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, tmpdir)
+                        zip_file.write(file_path, arcname)
+
+            # donwload button
             st.download_button(
                 label="zipファイルを取得",
-                data=zip_bytes,
-                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}.zip",
+                data=buffer.getvalue(),
+                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
+                type="primary",
             )
 
     @st.dialog("コメントを編集")
