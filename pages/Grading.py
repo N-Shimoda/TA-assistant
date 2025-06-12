@@ -301,6 +301,7 @@ class GradingPage:
             If False, exclude these files from the archive (for PandA upload, etc).
         """
         with tempfile.TemporaryDirectory() as tmpdir:
+            # create temp directory (w/ or w/o app-specific JSON files)
             for item in os.listdir(self.root_dir):
                 s = os.path.join(self.root_dir, item)
                 d = os.path.join(tmpdir, item)
@@ -311,21 +312,20 @@ class GradingPage:
                 else:
                     shutil.copy2(s, d)
 
-            basename = f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}"
+            # zip the temp directory
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                for root, dirs, files in os.walk(tmpdir):
-                    print(root, dirs)
+                for root, _, files in os.walk(tmpdir):
                     for file in files:
-                        print("\t- " + file)
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, tmpdir)
                         zip_file.write(file_path, arcname)
 
+            # donwload button
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"{basename}.zip",
+                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
