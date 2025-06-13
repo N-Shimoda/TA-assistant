@@ -229,39 +229,7 @@ class GradingPage:
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             st.markdown("#### 採点結果")
-            self.scores = {}
-
-            @st.fragment
-            def recurse(prefix: str, alloc: dict):
-                suffix = prefix.split("_")[-1]
-                if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
-                    max_score = int(alloc["score"])
-                    key = prefix
-                    widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                    prev_val = self.saved_scores.get(key, 0)
-                    match alloc["type"]:
-                        case "partial":
-                            val = st.number_input(
-                                suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
-                            )
-                        case "full-or-zero":
-                            checked = st.checkbox(suffix, value=(prev_val == max_score), key=widget_key)
-                            val = max_score if checked else 0
-                    self.scores[key] = val
-                elif isinstance(alloc, dict):
-                    st.markdown(prefix)
-                    for k, v in alloc.items():
-                        new_pref = f"{prefix}_{k}" if prefix else k
-                        recurse(new_pref, v)
-                else:
-                    st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
-
-            for q_key, q_val in self.allocation.items():
-                recurse(q_key, q_val)
-
-            total = sum(self.scores.values())
-            st.markdown(f"**合計得点: {total} 点**")
-
+            total = self.create_checkboxes()
             # display comments
             st.markdown("#### コメント")
             if self.comment_text:
@@ -269,12 +237,52 @@ class GradingPage:
             else:
                 st.markdown('<span style="color: gray;">コメントはありません。</span>', unsafe_allow_html=True)
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
-
             # save button
             st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
             if st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
                 st.session_state["just_saved"] = False
+
+    @st.fragment
+    def create_checkboxes(self) -> int:
+        self.scores = {}
+
+        def recurse(prefix: str, alloc: dict):
+            suffix = prefix.split("_")[-1]
+            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
+                max_score = int(alloc["score"])
+                key = prefix
+                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
+                prev_val = self.saved_scores.get(key, 0)
+                match alloc["type"]:
+                    case "partial":
+                        val = st.number_input(
+                            suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                        )
+                    case "full-or-zero":
+                        checked = st.checkbox(
+                            suffix,
+                            value=(prev_val == max_score),
+                            key=widget_key,
+                            help=str(alloc.get("answer")),
+                        )
+                        val = max_score if checked else 0
+                self.scores[key] = val
+            elif isinstance(alloc, dict):
+                st.markdown(prefix)
+                for k, v in alloc.items():
+                    new_pref = f"{prefix}_{k}" if prefix else k
+                    recurse(new_pref, v)
+            else:
+                st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
+
+        for q_key, q_val in self.allocation.items():
+            recurse(q_key, q_val)
+
+        total = sum(self.scores.values())
+        st.markdown(f"**合計得点: {total} 点**")
+
+        return total
 
     def display_progress(self):
         """Display the overall progress of grading."""
