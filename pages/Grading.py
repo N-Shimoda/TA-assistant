@@ -168,6 +168,7 @@ class GradingPage:
             labels.append("未提出")
 
         # Create tabs for each type of attachment
+        HEIGHT = 720
         tabs = st.tabs(labels)
         # display PDFs
         for idx, pdf in enumerate(pdfs):
@@ -176,7 +177,7 @@ class GradingPage:
                 b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
                 st.markdown(f"#### {pdf}")
                 st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height=720></iframe>',
+                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT}></iframe>',
                     unsafe_allow_html=True,
                 )
         # display images
@@ -185,28 +186,36 @@ class GradingPage:
                 file_path = os.path.join(attachments_dir, img)
                 st.markdown(f"#### {img}")
                 ext = Path(img).suffix.lower()
-                if ext in [".jpg", ".jpeg"]:
-                    try:
-                        image = Image.open(file_path)
-                        # check and apply EXIF orientation
-                        exif = image._getexif()
-                        if exif is not None:
-                            orientation_key = next((k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None)
-                            if orientation_key and orientation_key in exif:
-                                orientation = exif[orientation_key]
-                            if orientation == 3:
-                                image = image.rotate(180, expand=True)
-                            elif orientation == 6:
-                                image = image.rotate(270, expand=True)
-                            elif orientation == 8:
-                                image = image.rotate(90, expand=True)
-                        st.image(image, use_container_width=True, caption=img)
-                    except Exception as e:
-                        # show the original image if rotation fails
-                        st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
-                        st.image(file_path, use_container_width=True, caption=img)
-                else:
-                    st.image(file_path, use_container_width=True, caption=img)
+                match ext:
+                    case ".jpg" | ".jpeg":
+                        try:
+                            image = Image.open(file_path)
+                            # check and apply EXIF orientation
+                            exif = image._getexif()
+                            if exif is not None:
+                                orientation_key = next(
+                                    (k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None
+                                )
+                                if orientation_key and orientation_key in exif:
+                                    orientation = exif[orientation_key]
+                                if orientation == 3:
+                                    image = image.rotate(180, expand=True)
+                                elif orientation == 6:
+                                    image = image.rotate(270, expand=True)
+                                elif orientation == 8:
+                                    image = image.rotate(90, expand=True)
+                            with st.container(height=HEIGHT):
+                                st.image(image, use_container_width=True, caption=img)
+                        except Exception as e:
+                            # show the original image if rotation fails
+                            with st.container(height=HEIGHT):
+                                st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
+                                st.image(file_path, use_container_width=True, caption=img)
+                    case ".png":
+                        with st.container(height=HEIGHT):
+                            st.image(file_path, use_container_width=True, caption=img)
+                    case _:
+                        st.warning(f"サポートされていない画像形式: {ext}. 画像を表示できません。")
         # display other files
         if others:
             with tabs[len(pdfs) + len(images)]:
