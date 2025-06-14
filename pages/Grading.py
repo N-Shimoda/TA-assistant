@@ -23,6 +23,8 @@ class GradingPage:
         # data for each assignment
         self.allocation = {}
         self.students = []
+        self.total_count = None
+        self.graded_count = None
 
         # data for each student (i.e. submission)
         self.scores = {}
@@ -40,6 +42,7 @@ class GradingPage:
         # session states
         st.session_state.setdefault("student_index", 0)
         st.session_state.setdefault("just_saved", False)
+        st.session_state.setdefault("grading_in_progress", True)
 
     def run(self):
         st.header("提出物ビューア")
@@ -65,7 +68,6 @@ class GradingPage:
                 key="assignment_select",
             )
 
-            total_count = None
             if self.selected_assignment:
                 self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
                 self.allocation = self._load_allocation(self.root_dir)
@@ -77,14 +79,18 @@ class GradingPage:
                 try:
                     with open(grades_file, encoding="utf-8") as gf:
                         graded = json.load(gf)
-                    graded_count = len(graded)
+                    self.graded_count = len(graded)
                 except FileNotFoundError:
-                    graded_count = 0
-                total_count = len(self.students)
+                    self.graded_count = 0
+                self.total_count = len(self.students)
 
             st.markdown("### 採点進捗")
-            st.markdown(f"#### 採点済み: {graded_count} / {total_count}" if total_count else "#### 採点済み: 0 / 0")
-            st.progress(graded_count / total_count if total_count else 0)
+            st.markdown(
+                f"#### 採点済み: {self.graded_count} / {self.total_count}"
+                if self.total_count
+                else "#### 採点済み: 0 / 0"
+            )
+            st.progress(self.graded_count / self.total_count if self.total_count else 0)
 
             # download button
             st.divider()
@@ -262,10 +268,16 @@ class GradingPage:
                 st.markdown('<span style="color: gray;">コメントはありません。</span>', unsafe_allow_html=True)
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
             # save button
-            st.button("保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀")
-            if st.session_state.get("just_saved"):
+            save_button = st.button(
+                "保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀"
+            )
+            if save_button and st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
                 st.session_state["just_saved"] = False
+            if save_button and st.session_state.get("grading_in_progress") and self.graded_count == self.total_count:
+                st.balloons()
+                st.toast("すべての採点が完了しました！", icon="🎉")
+                st.session_state["grading_in_progress"] = False
 
     @st.fragment
     def create_checkboxes(self) -> int:
@@ -367,7 +379,7 @@ class GradingPage:
 
     def _save_scores(self, total_score: int):
         """
-        Save the current scores and comments to files.
+        Callback function for saving the current scores to files.
 
         Parameters
         ----------
@@ -389,10 +401,12 @@ class GradingPage:
         csv_path = os.path.join(self.root_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
+        # load existing CSV data
         with open(csv_path, "r", newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             for row in reader:
                 lines.append(row)
+        # find the header row and check the column index for "成績"
         try:
             header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
         except StopIteration:
@@ -400,6 +414,7 @@ class GradingPage:
             return
         header = lines[header_idx]
         grade_idx = header.index("成績")
+        # update the score for the selected student
         for i in range(header_idx + 1, len(lines)):
             if lines[i] and lines[i][0] == student_id:
                 lines[i][grade_idx] = str(total_score)
