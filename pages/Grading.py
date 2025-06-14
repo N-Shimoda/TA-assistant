@@ -48,8 +48,8 @@ class GradingPage:
 
     def create_sidebar(self):
         with st.sidebar:
-            st.markdown("### 提出物の選択")
             # selecttion of subject and assignment
+            st.markdown("### 提出物の選択")
             subjects = list(self.assignments.keys())
             self.selected_subject = st.selectbox(
                 "科目",
@@ -64,14 +64,30 @@ class GradingPage:
                 index=assignment_li.index(self.selected_assignment) if self.selected_assignment else None,
                 key="assignment_select",
             )
+
+            total_count = None
             if self.selected_assignment:
                 self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
                 self.allocation = self._load_allocation(self.root_dir)
-                # student
+                # student selection
                 self.create_student_selection()
 
+                # display progress
+                grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+                try:
+                    with open(grades_file, encoding="utf-8") as gf:
+                        graded = json.load(gf)
+                    graded_count = len(graded)
+                except FileNotFoundError:
+                    graded_count = 0
+                total_count = len(self.students)
+
+            st.markdown("### 採点進捗")
+            st.markdown(f"#### 採点済み: {graded_count} / {total_count}" if total_count else "#### 採点済み: 0 / 0")
+            st.progress(graded_count / total_count if total_count else 0)
+
             # download button
-            st.markdown("---")
+            st.divider()
             st.markdown("### ダウンロード")
             include_json = st.checkbox(
                 "アプリ固有のjsonファイルを含める",
@@ -127,8 +143,6 @@ class GradingPage:
             self.create_submission_tab(attachments, html_content, attachments_dir)
         with col_grade:
             self.create_grading_tab()
-
-        self.display_progress()
 
     def create_submission_tab(self, attachments: list[str], html_content: str | None, attachments_dir: str):
         """
@@ -293,20 +307,6 @@ class GradingPage:
         st.markdown(f"**合計得点: {total} 点**")
 
         return total
-
-    def display_progress(self):
-        """Display the overall progress of grading."""
-        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
-        try:
-            with open(grades_file, encoding="utf-8") as gf:
-                graded = json.load(gf)
-            graded_count = len(graded)
-        except FileNotFoundError:
-            graded_count = 0
-        total_count = len(self.students)
-        st.divider()
-        st.markdown(f"#### 進捗状況: {graded_count} / {total_count}")
-        st.progress(graded_count / total_count if total_count else 0)
 
     def _on_download_click(self, include_json: bool):
         """
