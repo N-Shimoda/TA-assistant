@@ -219,16 +219,16 @@ class GradingPage:
                                     image = image.rotate(270, expand=True)
                                 elif orientation == 8:
                                     image = image.rotate(90, expand=True)
-                            st.container(height=HEIGHT)
-                            st.image(image, use_container_width=True, caption=img)
+                            with st.container(height=HEIGHT):
+                                st.image(image, use_container_width=True, caption=img)
                         except Exception as e:
                             # show the original image if rotation fails
-                            st.container(height=HEIGHT)
-                            st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
-                            st.image(file_path, use_container_width=True, caption=img)
+                            with st.container(height=HEIGHT):
+                                st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
+                                st.image(file_path, use_container_width=True, caption=img)
                     case ".png":
-                        st.container(height=HEIGHT)
-                        st.image(file_path, use_container_width=True, caption=img)
+                        with st.container(height=HEIGHT):
+                            st.image(file_path, use_container_width=True, caption=img)
                     case _:
                         st.warning(f"サポートされていない画像形式: {ext}. 画像を表示できません。")
         # display other files
