@@ -37,6 +37,10 @@ class GradingPage:
         subjects = self._list_subdirs(self.base_dir)
         self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
 
+        # session states
+        st.session_state.setdefault("student_index", 0)
+        st.session_state.setdefault("just_saved", False)
+
     def run(self):
         st.header("提出物ビューア")
         self.create_sidebar()
@@ -79,17 +83,14 @@ class GradingPage:
 
     def create_student_selection(self):
         self.students = self._list_subdirs(self.root_dir)
-        if "student_index" not in st.session_state:
-            st.session_state["student_index"] = 0
         sel = st.selectbox(
             "学生氏名",
             self.students,
             index=st.session_state["student_index"],
             key="student_select",
-            format_func=lambda x: x.split("(")[0],
+            format_func=lambda x: x.split("(")[0],  # display only the name part
         )
-        if sel != self.students[st.session_state["student_index"]]:
-            st.session_state["student_index"] = self.students.index(sel)
+        st.session_state["student_index"] = self.students.index(sel)
         self.selected_student = self.students[st.session_state["student_index"]]
 
         # load saved scores
