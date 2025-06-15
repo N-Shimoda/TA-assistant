@@ -2,6 +2,7 @@ import io
 import os
 import shutil
 import zipfile
+import json
 
 import streamlit as st
 
@@ -87,7 +88,7 @@ class HomePage:
         if zip_file and st.button("追加"):
             # extract assignment title from zip file name
             assignment_name = os.path.splitext(zip_file.name)[0]
-            assignment_dir = os.path.join(self.base_dir, sbj_name)
+            assignment_dir = os.path.join(self.base_dir, sbj_name, assignment_name)
             os.makedirs(assignment_dir, exist_ok=True)
 
             # Decompress the zip file
@@ -126,6 +127,92 @@ class HomePage:
                     with zf.open(info) as src, open(dest_path, "wb") as dst:
                         shutil.copyfileobj(src, dst)
 
+            self._allocation_dialog(assignment_dir, assignment_name)
+
+    @st.dialog("allocation.json を作成")
+    def _allocation_dialog(self, assignment_dir: str, assignment_name: str):
+        st.write("問題の構成・配点・正解を入力してください")
+
+        def input_problem(level: int = 1, prefix: str = ""):
+            items: dict[str, dict] = {}
+            count = st.number_input(
+                f"{prefix or '設問'} に含める項目数 (最大20)",
+                min_value=0,
+                max_value=20,
+                key=f"count_{prefix}_{level}",
+            )
+            for i in range(1, count + 1):
+                key_base = f"{prefix}_{i}_{level}".replace(" ", "_")
+                sub_label = st.text_input(
+                    f"{prefix} の項目{i}のラベル", key=f"label_{key_base}"
+                )
+                if not sub_label:
+                    continue
+                if level < 3:
+                    nested = st.checkbox(
+                        f"{sub_label} に下位項目を追加", key=f"nest_{key_base}"
+                    )
+                    if nested:
+                        with st.container():
+                            st.markdown(f"##### {sub_label} の下位項目")
+                            items[sub_label] = input_problem(level + 1, f"{key_base}_{sub_label}")
+                            continue
+                q_type = st.selectbox(
+                    f"{sub_label} の採点方法",
+                    ["full-or-zero", "partial"],
+                    key=f"type_{key_base}",
+                )
+                score = st.number_input(
+                    f"{sub_label} の配点", min_value=0, key=f"score_{key_base}"
+                )
+                answer = st.text_input(
+                    f"{sub_label} の正答", key=f"answer_{key_base}"
+                )
+                items[sub_label] = {"type": q_type, "score": score, "answer": answer}
+            return items
+
+        allocation: dict[str, dict] = {}
+        num_questions = st.number_input(
+            "設問数", min_value=1, max_value=20, key="num_questions"
+        )
+        for q_num in range(1, num_questions + 1):
+            st.divider()
+            q_label = st.text_input(
+                f"問{q_num} のラベル", value=f"問{q_num}", key=f"q_label_{q_num}"
+            )
+            has_sub = st.checkbox(
+                f"{q_label} に小問を含める", key=f"has_sub_{q_num}"
+            )
+            if has_sub:
+                with st.container():
+                    st.markdown(f"#### {q_label} の小問入力")
+                    allocation[q_label] = input_problem(2, f"{q_label}_{q_num}")
+            else:
+                q_type = st.selectbox(
+                    f"{q_label} の採点方法",
+                    ["full-or-zero", "partial"],
+                    key=f"type_top_{q_num}",
+                )
+                score = st.number_input(
+                    f"{q_label} の配点", min_value=0, key=f"score_top_{q_num}"
+                )
+                answer = st.text_input(
+                    f"{q_label} の正答", key=f"answer_top_{q_num}"
+                )
+                allocation[q_label] = {
+                    "type": q_type,
+                    "score": score,
+                    "answer": answer,
+                }
+
+        st.divider()
+        if st.button("保存", key="save_allocation"):
+            with open(
+                os.path.join(assignment_dir, "allocation.json"),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                json.dump(allocation, f, ensure_ascii=False, indent=2)
             st.session_state["uploaded_assignment"] = assignment_name
             st.rerun()
 
