@@ -86,7 +86,10 @@ class ConfigPage:
         st.set_page_config(page_title="Config", layout="wide")
         st.title("Configuration")
         st.markdown("#### Base Directory")
-        st.markdown(f"現在のディレクトリ : `{self.current_dir}`")
+        st.markdown(
+            f"現在のディレクトリ :`{self.current_dir}`",
+            help="採点データを保存するフォルダ。OneDrive や iCloud で管理されたパスを指定すると、デバイス間での同期が可能です。",
+        )
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn")
 
         if st.session_state.get("just_saved"):
