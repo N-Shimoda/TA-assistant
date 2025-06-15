@@ -12,6 +12,8 @@ from pathlib import Path
 import streamlit as st
 from PIL import ExifTags, Image
 
+from get_base_dir import get_base_dir_from_config
+
 
 class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
@@ -355,7 +357,7 @@ class GradingPage:
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
@@ -451,5 +453,6 @@ class GradingPage:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="提出物ビューア", layout="wide")
-    app = GradingPage()
+    base_dir = get_base_dir_from_config()
+    app = GradingPage(base_dir)
     app.run()
