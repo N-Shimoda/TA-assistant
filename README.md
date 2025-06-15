@@ -12,49 +12,53 @@
 ## 採点フロー
 
 ### 1. PandA から課題のデータをダウンロードする
+
 - PandA の課題採点ページで「すべてダウンロード」を実行し、PC に課題のデータをダウンロードする。
 - 成績ファイルの形式は CSV (`grades.csv`) を選択。
 
 ### 2. 課題データの登録、配点の定義
+
 1. [localhost:8501](http://localhost:8501) にアクセスし、実行中のアプリをブラウザで開く。
 2. PandA からダウンロードしたフォルダを zip に圧縮しておき、**Home** >「課題を追加する」のボタンからアップロードする。
 3. `assignemts/科目名/課題名/allocation.json` というファイルを作成し、配点を定義する。
 <details>
 <summary>`allocation.json` の例：</summary>
-  
-  ```json
-  {
-    "問1": {
-      "(1)": {
-        "(ア)": {
-          "type": "full-or-zero",  # 部分点なし, チェックボックスでの採点
-          "score": 10
-        },
-        "(イ)": {
-          "type": "full-or-zero",
-          "score": 10
-        },
-        "(ウ)": {
-          "type": "full-or-zero",
-          "score": 10
-        }
+
+```json
+{
+  "問1": {
+    "(1)": {
+      "(ア)": {
+        "type": "full-or-zero",  # 部分点なし, チェックボックスでの採点
+        "score": 10
       },
-      "(2)": {
+      "(イ)": {
         "type": "full-or-zero",
-        "score": 16
+        "score": 10
+      },
+      "(ウ)": {
+        "type": "full-or-zero",
+        "score": 10
       }
     },
-    "問2": {
-      "type": "partial",  # 部分点あり. 点数の記入による numerical な採点
-      "score": 32
+    "(2)": {
+      "type": "full-or-zero",
+      "score": 16
     }
+  },
+  "問2": {
+    "type": "partial",  # 部分点あり. 点数の記入による numerical な採点
+    "score": 32
   }
-  ```
+}
+```
+
 </details>
 
 ### 3. 課題の採点
 
 ### 4. 採点結果の圧縮、PandA への反映
+
 - サイドバーの「採点結果をダウンロード」ボタンから、**JSON ファイルを含めずに**データをダウンロードする。
 - PandA の課題採点ページに戻り、「すべてアップロード」から採点済みの zip ファイルをアップロードする（`grading_result_*.zip`）。
 
@@ -78,5 +82,5 @@ conda activate app-ta
 コマンドを実行し、ブラウザから [localhost:8501](http://localhost:8501) にアクセスする
 
 ```shell
-streamlit run Home.py
+streamlit run main.py
 ```

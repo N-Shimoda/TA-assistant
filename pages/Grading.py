@@ -12,13 +12,15 @@ from pathlib import Path
 import streamlit as st
 from PIL import ExifTags, Image
 
+from get_base_dir import get_base_dir_from_config
+
 
 class GradingPage:
     def __init__(self, base_dir: str = "assignments"):
         # directories
         os.makedirs(base_dir, exist_ok=True)
         self.base_dir = base_dir
-        self.root_dir = None
+        self.assignment_dir = None
 
         # data for each assignment
         self.allocation = {}
@@ -69,13 +71,13 @@ class GradingPage:
             )
 
             if self.selected_assignment:
-                self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
-                self.allocation = self._load_allocation(self.root_dir)
+                self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
+                self.allocation = self._load_allocation(self.assignment_dir)
                 # student selection
                 self.create_student_selection()
 
                 # display progress
-                grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+                grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
                 try:
                     with open(grades_file, encoding="utf-8") as gf:
                         graded = json.load(gf)
@@ -104,7 +106,7 @@ class GradingPage:
                 self._on_download_click(include_json)
 
     def create_student_selection(self):
-        self.students = self._list_subdirs(self.root_dir)
+        self.students = self._list_subdirs(self.assignment_dir)
         sel = st.selectbox(
             "学生氏名",
             self.students,
@@ -117,7 +119,7 @@ class GradingPage:
 
         # load saved scores
         try:
-            grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+            grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
             with open(grades_file, encoding="utf-8") as gf:
                 all_data = json.load(gf)
             self.saved_scores = all_data.get(self.selected_student, {})
@@ -125,7 +127,7 @@ class GradingPage:
             self.saved_scores = {}
 
         # load comments as HTML
-        comments_path = os.path.join(self.root_dir, self.selected_student, "comments.txt")
+        comments_path = os.path.join(self.assignment_dir, self.selected_student, "comments.txt")
         if os.path.isfile(comments_path):
             self.comment_text = Path(comments_path).read_text(encoding="utf-8")
         else:
@@ -133,11 +135,11 @@ class GradingPage:
 
     def create_widgets(self):
         """Create widgets for displaying and grading student submissions."""
-        if not self.root_dir:
+        if not self.assignment_dir:
             st.warning("科目と課題を選択してください。")
             return
 
-        student_dir = os.path.join(self.root_dir, self.selected_student)
+        student_dir = os.path.join(self.assignment_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
         html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
 
@@ -332,8 +334,8 @@ class GradingPage:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             # create temp directory (w/ or w/o app-specific JSON files)
-            for item in os.listdir(self.root_dir):
-                s = os.path.join(self.root_dir, item)
+            for item in os.listdir(self.assignment_dir):
+                s = os.path.join(self.assignment_dir, item)
                 d = os.path.join(tmpdir, item)
                 if not include_json and item in ["detailed_grades.json", "allocation.json"]:
                     continue
@@ -355,7 +357,7 @@ class GradingPage:
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
@@ -367,7 +369,9 @@ class GradingPage:
             st.components.v1.html(self.comment_text, height=40, scrolling=True)
         self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
         if st.button("保存"):
-            with open(os.path.join(self.root_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8"
+            ) as f:
                 f.write("<p>" + self.comment_text + "</p>")
             st.success("コメントを保存しました！")
             st.rerun()
@@ -387,7 +391,7 @@ class GradingPage:
             The total score for the selected student.
         """
         # save detailed grades to JSON (original file for this app)
-        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+        grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
         try:
             with open(grades_file, "r", encoding="utf-8") as gf:
                 data: dict[str, dict] = json.load(gf)
@@ -398,7 +402,7 @@ class GradingPage:
             json.dump(data, gf, ensure_ascii=False, indent=2)
 
         # save overall grades to CSV (official file from PandA)
-        csv_path = os.path.join(self.root_dir, "grades.csv")
+        csv_path = os.path.join(self.assignment_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
         # load existing CSV data
@@ -449,5 +453,6 @@ class GradingPage:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="提出物ビューア", layout="wide")
-    app = GradingPage()
+    base_dir = get_base_dir_from_config()
+    app = GradingPage(base_dir)
     app.run()

@@ -5,9 +5,11 @@ import zipfile
 
 import streamlit as st
 
+from get_base_dir import get_base_dir_from_config
+
 
 class HomePage:
-    def __init__(self, base_dir: str = "assignments"):
+    def __init__(self, base_dir: str = None):
         os.makedirs(base_dir, exist_ok=True)
         self.base_dir = base_dir
         self.subjects = self._list_subdirs(self.base_dir)
@@ -148,5 +150,6 @@ class HomePage:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="ホーム", layout="wide")
-    home_page = HomePage()
+    base_dir = get_base_dir_from_config()
+    home_page = HomePage(base_dir)
     home_page.create_widgets()
