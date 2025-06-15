@@ -1,1 +1,4 @@
+.streamlit/
 assignments/
+
+__pycache__/
