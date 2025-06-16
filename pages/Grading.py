@@ -147,12 +147,15 @@ class GradingPage:
         attachments = sorted(os.listdir(attachments_dir)) if os.path.isdir(attachments_dir) else []
 
         col_main, col_grade = st.columns([3, 1], border=True)
+        HEIGHT = 740  # default height for the submission tab
         with col_main:
-            self.create_submission_tab(attachments, html_content, attachments_dir)
+            self.create_submission_tab(attachments, html_content, attachments_dir, HEIGHT)
         with col_grade:
-            self.create_grading_tab()
+            self.create_grading_tab(HEIGHT)
 
-    def create_submission_tab(self, attachments: list[str], html_content: str | None, attachments_dir: str):
+    def create_submission_tab(
+        self, attachments: list[str], html_content: str | None, attachments_dir: str, HEIGHT: int
+    ):
         """
         Create tabs for displaying submitted materials.
 
@@ -160,6 +163,12 @@ class GradingPage:
         ----------
         attachments : list[str]
             List of attachment file names submitted by the student.
+        html_content : str | None
+            HTML content of the submitted text, or None if not submitted.
+        attachments_dir : str
+            Directory containing the attachments submitted by the student.
+        HEIGHT : int
+            Height of the iframe and containers for displaying PDFs and HTML content.
         """
         # organize attachments by type
         pdfs, images, others = [], [], []
@@ -191,23 +200,23 @@ class GradingPage:
             labels.append("未提出")
 
         # Create tabs for each type of attachment
-        HEIGHT = 720
         tabs = st.tabs(labels)
         # display PDFs
         for idx, pdf in enumerate(pdfs):
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, pdf)
-                b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
+                with open(file_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
                 st.markdown(f"#### {pdf}")
                 st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT}></iframe>',
+                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT - 20}px></iframe>',
                     unsafe_allow_html=True,
                 )
         # display images
         for idx, img in enumerate(images, start=len(pdfs)):
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, img)
-                st.markdown(f"#### {img}")
+                # st.markdown(f"#### {img}")
                 ext = Path(img).suffix.lower()
                 match ext:
                     case ".jpg" | ".jpeg":
@@ -227,16 +236,19 @@ class GradingPage:
                                     image = image.rotate(270, expand=True)
                                 elif orientation == 8:
                                     image = image.rotate(90, expand=True)
-                            with st.container(height=HEIGHT):
-                                st.image(image, use_container_width=True, caption=img)
+                            with st.container(height=HEIGHT, border=False):
+                                st.markdown(f"#### {img}")
+                                st.image(image, use_container_width=True)
                         except Exception as e:
                             # show the original image if rotation fails
-                            with st.container(height=HEIGHT):
+                            with st.container(height=HEIGHT, border=False):
+                                st.markdown(f"#### {img}")
                                 st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
-                                st.image(file_path, use_container_width=True, caption=img)
+                                st.image(file_path, use_container_width=True)
                     case ".png":
-                        with st.container(height=HEIGHT):
-                            st.image(file_path, use_container_width=True, caption=img)
+                        with st.container(height=HEIGHT, border=False):
+                            st.markdown(f"#### {img}")
+                            st.image(file_path, use_container_width=True)
                     case _:
                         st.warning(f"サポートされていない画像形式: {ext}. 画像を表示できません。")
         # display other files
@@ -256,12 +268,13 @@ class GradingPage:
             with tabs[-1]:
                 st.warning("課題が未提出です。")
 
-    def create_grading_tab(self):
+    def create_grading_tab(self, HEIGHT: int):
         """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
-            st.markdown("#### 採点結果")
-            total = self.create_checkboxes()
+            with st.container(height=HEIGHT - 200, border=False):
+                st.markdown("#### 採点結果")
+                total = self.create_checkboxes()
             # display comments
             st.markdown("#### コメント")
             if self.comment_text:
