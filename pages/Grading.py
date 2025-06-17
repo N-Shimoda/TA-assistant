@@ -12,13 +12,18 @@ from pathlib import Path
 import streamlit as st
 from PIL import ExifTags, Image
 
+from pages.Page import AppPage
 
-class GradingPage:
-    def __init__(self, base_dir: str = "assignments"):
+
+class GradingPage(AppPage):
+    def __init__(self):
+        super().__init__()
+        self.config = self.load_config()
+
         # directories
-        os.makedirs(base_dir, exist_ok=True)
-        self.base_dir = base_dir
-        self.root_dir = None
+        self.base_dir = self.config.get("save", {}).get("dir")
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.assignment_dir = None
 
         # data for each assignment
         self.allocation = {}
@@ -69,13 +74,13 @@ class GradingPage:
             )
 
             if self.selected_assignment:
-                self.root_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
-                self.allocation = self._load_allocation(self.root_dir)
+                self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
+                self.allocation = self._load_allocation(self.assignment_dir)
                 # student selection
                 self.create_student_selection()
 
                 # display progress
-                grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+                grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
                 try:
                     with open(grades_file, encoding="utf-8") as gf:
                         graded = json.load(gf)
@@ -104,7 +109,7 @@ class GradingPage:
                 self._on_download_click(include_json)
 
     def create_student_selection(self):
-        self.students = self._list_subdirs(self.root_dir)
+        self.students = self._list_subdirs(self.assignment_dir)
         sel = st.selectbox(
             "学生氏名",
             self.students,
@@ -117,7 +122,7 @@ class GradingPage:
 
         # load saved scores
         try:
-            grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+            grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
             with open(grades_file, encoding="utf-8") as gf:
                 all_data = json.load(gf)
             self.saved_scores = all_data.get(self.selected_student, {})
@@ -125,7 +130,7 @@ class GradingPage:
             self.saved_scores = {}
 
         # load comments as HTML
-        comments_path = os.path.join(self.root_dir, self.selected_student, "comments.txt")
+        comments_path = os.path.join(self.assignment_dir, self.selected_student, "comments.txt")
         if os.path.isfile(comments_path):
             self.comment_text = Path(comments_path).read_text(encoding="utf-8")
         else:
@@ -133,11 +138,11 @@ class GradingPage:
 
     def create_widgets(self):
         """Create widgets for displaying and grading student submissions."""
-        if not self.root_dir:
+        if not self.assignment_dir:
             st.warning("科目と課題を選択してください。")
             return
 
-        student_dir = os.path.join(self.root_dir, self.selected_student)
+        student_dir = os.path.join(self.assignment_dir, self.selected_student)
         htmls = list(Path(student_dir).glob("*_submissionText.html"))
         html_content = htmls and Path(htmls[0]).read_text(encoding="utf-8").strip() or None
 
@@ -145,12 +150,15 @@ class GradingPage:
         attachments = sorted(os.listdir(attachments_dir)) if os.path.isdir(attachments_dir) else []
 
         col_main, col_grade = st.columns([3, 1], border=True)
+        HEIGHT = self.config["window"]["grading_height"]  # default height for the submission tab
         with col_main:
-            self.create_submission_tab(attachments, html_content, attachments_dir)
+            self.create_submission_tab(attachments, html_content, attachments_dir, HEIGHT)
         with col_grade:
-            self.create_grading_tab()
+            self.create_grading_tab(HEIGHT)
 
-    def create_submission_tab(self, attachments: list[str], html_content: str | None, attachments_dir: str):
+    def create_submission_tab(
+        self, attachments: list[str], html_content: str | None, attachments_dir: str, HEIGHT: int
+    ):
         """
         Create tabs for displaying submitted materials.
 
@@ -158,6 +166,12 @@ class GradingPage:
         ----------
         attachments : list[str]
             List of attachment file names submitted by the student.
+        html_content : str | None
+            HTML content of the submitted text, or None if not submitted.
+        attachments_dir : str
+            Directory containing the attachments submitted by the student.
+        HEIGHT : int
+            Height of the iframe and containers for displaying attachments.
         """
         # organize attachments by type
         pdfs, images, others = [], [], []
@@ -189,23 +203,23 @@ class GradingPage:
             labels.append("未提出")
 
         # Create tabs for each type of attachment
-        HEIGHT = 720
         tabs = st.tabs(labels)
         # display PDFs
         for idx, pdf in enumerate(pdfs):
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, pdf)
-                b64 = base64.b64encode(open(file_path, "rb").read()).decode("utf-8")
+                with open(file_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
                 st.markdown(f"#### {pdf}")
                 st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT}></iframe>',
+                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT}px></iframe>',
                     unsafe_allow_html=True,
                 )
         # display images
         for idx, img in enumerate(images, start=len(pdfs)):
             with tabs[idx]:
                 file_path = os.path.join(attachments_dir, img)
-                st.markdown(f"#### {img}")
+                # st.markdown(f"#### {img}")
                 ext = Path(img).suffix.lower()
                 match ext:
                     case ".jpg" | ".jpeg":
@@ -225,16 +239,19 @@ class GradingPage:
                                     image = image.rotate(270, expand=True)
                                 elif orientation == 8:
                                     image = image.rotate(90, expand=True)
-                            with st.container(height=HEIGHT):
-                                st.image(image, use_container_width=True, caption=img)
+                            st.markdown(f"#### {img}")
+                            with st.container(height=HEIGHT, border=False):
+                                st.image(image, use_container_width=True)
                         except Exception as e:
                             # show the original image if rotation fails
-                            with st.container(height=HEIGHT):
+                            st.markdown(f"#### {img}")
+                            with st.container(height=HEIGHT, border=False):
                                 st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
-                                st.image(file_path, use_container_width=True, caption=img)
+                                st.image(file_path, use_container_width=True)
                     case ".png":
-                        with st.container(height=HEIGHT):
-                            st.image(file_path, use_container_width=True, caption=img)
+                        st.markdown(f"#### {img}")
+                        with st.container(height=HEIGHT, border=False):
+                            st.image(file_path, use_container_width=True)
                     case _:
                         st.warning(f"サポートされていない画像形式: {ext}. 画像を表示できません。")
         # display other files
@@ -254,12 +271,14 @@ class GradingPage:
             with tabs[-1]:
                 st.warning("課題が未提出です。")
 
-    def create_grading_tab(self):
+    def create_grading_tab(self, HEIGHT: int):
         """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             st.markdown("#### 採点結果")
-            total = self.create_checkboxes()
+            with st.container(height=HEIGHT - 200, border=False):
+                total = self.create_checkboxes()
+            st.markdown(f"**合計得点: {total} 点**")
             # display comments
             st.markdown("#### コメント")
             if self.comment_text:
@@ -316,8 +335,6 @@ class GradingPage:
             recurse(q_key, q_val)
 
         total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-
         return total
 
     def _on_download_click(self, include_json: bool):
@@ -332,8 +349,8 @@ class GradingPage:
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             # create temp directory (w/ or w/o app-specific JSON files)
-            for item in os.listdir(self.root_dir):
-                s = os.path.join(self.root_dir, item)
+            for item in os.listdir(self.assignment_dir):
+                s = os.path.join(self.assignment_dir, item)
                 d = os.path.join(tmpdir, item)
                 if not include_json and item in ["detailed_grades.json", "allocation.json"]:
                     continue
@@ -355,7 +372,7 @@ class GradingPage:
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"grading_result_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
@@ -367,7 +384,9 @@ class GradingPage:
             st.components.v1.html(self.comment_text, height=40, scrolling=True)
         self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
         if st.button("保存"):
-            with open(os.path.join(self.root_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8"
+            ) as f:
                 f.write("<p>" + self.comment_text + "</p>")
             st.success("コメントを保存しました！")
             st.rerun()
@@ -387,7 +406,7 @@ class GradingPage:
             The total score for the selected student.
         """
         # save detailed grades to JSON (original file for this app)
-        grades_file = os.path.join(self.root_dir, "detailed_grades.json")
+        grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
         try:
             with open(grades_file, "r", encoding="utf-8") as gf:
                 data: dict[str, dict] = json.load(gf)
@@ -398,7 +417,7 @@ class GradingPage:
             json.dump(data, gf, ensure_ascii=False, indent=2)
 
         # save overall grades to CSV (official file from PandA)
-        csv_path = os.path.join(self.root_dir, "grades.csv")
+        csv_path = os.path.join(self.assignment_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
         # load existing CSV data

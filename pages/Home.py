@@ -5,11 +5,16 @@ import zipfile
 
 import streamlit as st
 
+from pages.Page import AppPage
 
-class HomePage:
-    def __init__(self, base_dir: str = "assignments"):
-        os.makedirs(base_dir, exist_ok=True)
-        self.base_dir = base_dir
+
+class HomePage(AppPage):
+    def __init__(self):
+        super().__init__()
+        self.config = self.load_config()
+
+        self.base_dir = self.config["save"]["dir"]
+        os.makedirs(self.base_dir, exist_ok=True)
         self.subjects = self._list_subdirs(self.base_dir)
         self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in self.subjects}
 
