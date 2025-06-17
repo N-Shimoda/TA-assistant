@@ -171,7 +171,7 @@ class GradingPage(AppPage):
         attachments_dir : str
             Directory containing the attachments submitted by the student.
         HEIGHT : int
-            Height of the iframe and containers for displaying PDFs and HTML content.
+            Height of the iframe and containers for displaying attachments.
         """
         # organize attachments by type
         pdfs, images, others = [], [], []
@@ -212,7 +212,7 @@ class GradingPage(AppPage):
                     b64 = base64.b64encode(f.read()).decode("utf-8")
                 st.markdown(f"#### {pdf}")
                 st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT - 20}px></iframe>',
+                    f'<iframe src="data:application/pdf;base64,{b64}" width=100% height={HEIGHT}px></iframe>',
                     unsafe_allow_html=True,
                 )
         # display images
@@ -239,18 +239,18 @@ class GradingPage(AppPage):
                                     image = image.rotate(270, expand=True)
                                 elif orientation == 8:
                                     image = image.rotate(90, expand=True)
+                            st.markdown(f"#### {img}")
                             with st.container(height=HEIGHT, border=False):
-                                st.markdown(f"#### {img}")
                                 st.image(image, use_container_width=True)
                         except Exception as e:
                             # show the original image if rotation fails
+                            st.markdown(f"#### {img}")
                             with st.container(height=HEIGHT, border=False):
-                                st.markdown(f"#### {img}")
                                 st.warning(f"画像の読み込みまたは回転に失敗しました: {e}")
                                 st.image(file_path, use_container_width=True)
                     case ".png":
+                        st.markdown(f"#### {img}")
                         with st.container(height=HEIGHT, border=False):
-                            st.markdown(f"#### {img}")
                             st.image(file_path, use_container_width=True)
                     case _:
                         st.warning(f"サポートされていない画像形式: {ext}. 画像を表示できません。")
@@ -275,9 +275,10 @@ class GradingPage(AppPage):
         """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
+            st.markdown("#### 採点結果")
             with st.container(height=HEIGHT - 200, border=False):
-                st.markdown("#### 採点結果")
                 total = self.create_checkboxes()
+            st.markdown(f"**合計得点: {total} 点**")
             # display comments
             st.markdown("#### コメント")
             if self.comment_text:
@@ -334,8 +335,6 @@ class GradingPage(AppPage):
             recurse(q_key, q_val)
 
         total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-
         return total
 
     def _on_download_click(self, include_json: bool):
