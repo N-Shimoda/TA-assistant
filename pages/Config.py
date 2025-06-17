@@ -53,7 +53,7 @@ class ConfigPage(AppPage):
             elif dir_valid:
                 st.warning("指定されたフォルダは空ではありません。")
                 st.markdown(
-                    '<span style="color: gray;">現在のコンテンツ : {}</span>'.format(os.listdir(new_dir)),
+                    '<span style="color: gray;">既存のコンテンツ : {}</span>'.format(os.listdir(new_dir)),
                     unsafe_allow_html=True,
                 )
             else:
@@ -76,7 +76,7 @@ class ConfigPage(AppPage):
                 st.rerun()
 
     @st.fragment
-    def craete_basedir_config(self):
+    def create_basedir_config(self):
         curr_dir = self.config.get("save", {}).get("dir", "")
         st.markdown("#### 課題データの保存先")
         st.markdown(
@@ -92,7 +92,7 @@ class ConfigPage(AppPage):
             st.badge("iCloud", icon=":material/check:", color="red")
         else:
             st.badge("Local", icon=":material/check:", color="gray")
-        st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn")
+        st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn", icon=":material/folder:")
 
     def create_height_config(self):
         """Configure window height of the Grading page."""
@@ -105,16 +105,35 @@ class ConfigPage(AppPage):
             step=10,
             key="window_height",
         )
-        if st.button("保存", key="save_height_btn"):
+        if st.button("保存", key="save_height_btn", icon=":material/check:"):
             # Update the config with the new height
             self.config["window"]["grading_height"] = height
             self.save_config()
             st.session_state["just_saved"] = True
 
+    def create_reset_config(self):
+        """Reset the configuration to default values."""
+
+        @st.dialog("設定をリセット")
+        def reset_config_dialog():
+            st.write("設定をリセットすると、現在の設定がすべて初期値に戻ります。本当にリセットしますか？")
+            st.write("デフォルトの設定：")
+            st.code(toml.dumps(self.default_config), language="json", wrap_lines=True)
+            if st.button("はい、リセットします", key="confirm_reset_btn"):
+                self.config = self.default_config
+                self.save_config()
+                st.session_state["just_saved"] = True
+                st.rerun()
+
+        if st.button("設定をリセット", key="reset_config_btn", icon=":material/refresh:"):
+            reset_config_dialog()
+
     def render(self):
         st.title("Configuration")
-        self.craete_basedir_config()
+        self.create_basedir_config()
         self.create_height_config()
+        with st.sidebar:
+            self.create_reset_config()
 
 
 if __name__ == "__main__":
