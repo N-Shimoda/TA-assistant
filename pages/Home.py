@@ -48,7 +48,7 @@ class HomePage(AppPage):
             help="PandA から課題フォルダをダウンロードし、zip ファイルとしてアップロードして下さい。",
         )
 
-        if zip_file and st.button("追加"):
+        if sbj_name and zip_file and st.button("追加"):
             # extract assignment title from zip file name
             assignment_name = os.path.splitext(zip_file.name)[0]
             assignment_dir = os.path.join(self.base_dir, sbj_name)

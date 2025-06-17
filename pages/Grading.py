@@ -48,10 +48,159 @@ class GradingPage(AppPage):
         st.session_state.setdefault("just_saved", False)
         st.session_state.setdefault("grading_in_progress", True)
 
-    def run(self):
-        st.header("提出物ビューア")
-        self.create_sidebar()
-        self.create_widgets()
+    @st.fragment
+    def create_checkboxes(self) -> int:
+        self.scores = {}
+        if not self.allocation:
+            st.warning("採点項目が設定されていません。")
+            return 0
+
+        def recurse(prefix: str, alloc: dict):
+            suffix = prefix.split("_")[-1]
+            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
+                max_score = int(alloc["score"])
+                key = prefix
+                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
+                prev_val = self.saved_scores.get(key, 0)
+                match alloc["type"]:
+                    case "partial":
+                        val = st.number_input(
+                            suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                        )
+                    case "full-or-zero":
+                        checked = st.checkbox(
+                            suffix,
+                            value=(prev_val == max_score),
+                            key=widget_key,
+                            help=str(alloc.get("answer")),
+                        )
+                        val = max_score if checked else 0
+                self.scores[key] = val
+            elif isinstance(alloc, dict):
+                st.markdown(prefix)
+                for k, v in alloc.items():
+                    new_pref = f"{prefix}_{k}" if prefix else k
+                    recurse(new_pref, v)
+            else:
+                st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
+
+        for q_key, q_val in self.allocation.items():
+            recurse(q_key, q_val)
+
+        total = sum(self.scores.values())
+        return total
+
+    def _on_download_click(self, include_json: bool):
+        """
+        Create a zip file of the assignment directory and provide a download button in Streamlit.
+
+        Parameters
+        ----------
+        include_json : bool
+            If True, include app-specific JSON files (detailed_grades.json, allocation.json) in the zip archive.
+            If False, exclude these files from the archive (for PandA upload, etc).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # create temp directory (w/ or w/o app-specific JSON files)
+            for item in os.listdir(self.assignment_dir):
+                s = os.path.join(self.assignment_dir, item)
+                d = os.path.join(tmpdir, item)
+                if not include_json and item in ["detailed_grades.json", "allocation.json"]:
+                    continue
+                if os.path.isdir(s):
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+
+            # zip the temp directory
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                for root, _, files in os.walk(tmpdir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, tmpdir)
+                        zip_file.write(file_path, arcname)
+
+            # donwload button
+            st.download_button(
+                label="zipファイルを取得",
+                data=buffer.getvalue(),
+                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                mime="application/zip",
+                type="primary",
+            )
+
+    @st.dialog("コメントを編集")
+    def _on_edit_comment_click(self):
+        st.write("採点コメントを編集してください。")
+        if self.comment_text:
+            st.components.v1.html(self.comment_text, height=40, scrolling=True)
+        self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
+        if st.button("保存"):
+            with open(
+                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8"
+            ) as f:
+                f.write("<p>" + self.comment_text + "</p>")
+            st.success("コメントを保存しました！")
+            st.rerun()
+
+    def _on_save_click(self, total_score: int):
+        self._save_scores(total_score)
+        st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
+        st.session_state["just_saved"] = True
+
+    def _save_scores(self, total_score: int):
+        """
+        Callback function for saving the current scores to files.
+
+        Parameters
+        ----------
+        total_score : int
+            The total score for the selected student.
+        """
+        # save detailed grades to JSON (original file for this app)
+        grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
+        try:
+            with open(grades_file, "r", encoding="utf-8") as gf:
+                data: dict[str, dict] = json.load(gf)
+        except FileNotFoundError:
+            data: dict[str, dict] = {}
+        data[self.selected_student] = self.scores
+        with open(grades_file, "w", encoding="utf-8") as gf:
+            json.dump(data, gf, ensure_ascii=False, indent=2)
+
+        # save overall grades to CSV (official file from PandA)
+        csv_path = os.path.join(self.assignment_dir, "grades.csv")
+        student_id = self.selected_student.split("(")[-1].rstrip(")")
+        lines = []
+        # load existing CSV data
+        with open(csv_path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                lines.append(row)
+        # find the header row and check the column index for "成績"
+        try:
+            header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
+        except StopIteration:
+            st.error("grades.csv に '学生番号' ヘッダー行が見つかりません。ファイル形式を確認してください。")
+            return
+        header = lines[header_idx]
+        grade_idx = header.index("成績")
+        # update the score for the selected student
+        for i in range(header_idx + 1, len(lines)):
+            if lines[i] and lines[i][0] == student_id:
+                lines[i][grade_idx] = str(total_score)
+                break
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(lines)
+
+    def _load_allocation(self, path: str):
+        alloc_file = os.path.join(path, "allocation.json")
+        if os.path.isfile(alloc_file):
+            with open(alloc_file, encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
     def create_sidebar(self):
         with st.sidebar:
@@ -275,7 +424,7 @@ class GradingPage(AppPage):
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             st.markdown("#### 採点結果")
-            with st.container(height=HEIGHT - 200, border=False):
+            with st.container(height=HEIGHT - 220, border=False):
                 total = self.create_checkboxes()
             st.markdown(f"**合計得点: {total} 点**")
             # display comments
@@ -297,156 +446,10 @@ class GradingPage(AppPage):
                 st.toast("すべての採点が完了しました！", icon="🎉")
                 st.session_state["grading_in_progress"] = False
 
-    @st.fragment
-    def create_checkboxes(self) -> int:
-        self.scores = {}
-
-        def recurse(prefix: str, alloc: dict):
-            suffix = prefix.split("_")[-1]
-            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
-                max_score = int(alloc["score"])
-                key = prefix
-                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                prev_val = self.saved_scores.get(key, 0)
-                match alloc["type"]:
-                    case "partial":
-                        val = st.number_input(
-                            suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
-                        )
-                    case "full-or-zero":
-                        checked = st.checkbox(
-                            suffix,
-                            value=(prev_val == max_score),
-                            key=widget_key,
-                            help=str(alloc.get("answer")),
-                        )
-                        val = max_score if checked else 0
-                self.scores[key] = val
-            elif isinstance(alloc, dict):
-                st.markdown(prefix)
-                for k, v in alloc.items():
-                    new_pref = f"{prefix}_{k}" if prefix else k
-                    recurse(new_pref, v)
-            else:
-                st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
-
-        for q_key, q_val in self.allocation.items():
-            recurse(q_key, q_val)
-
-        total = sum(self.scores.values())
-        return total
-
-    def _on_download_click(self, include_json: bool):
-        """
-        Create a zip file of the assignment directory and provide a download button in Streamlit.
-
-        Parameters
-        ----------
-        include_json : bool
-            If True, include app-specific JSON files (detailed_grades.json, allocation.json) in the zip archive.
-            If False, exclude these files from the archive (for PandA upload, etc).
-        """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # create temp directory (w/ or w/o app-specific JSON files)
-            for item in os.listdir(self.assignment_dir):
-                s = os.path.join(self.assignment_dir, item)
-                d = os.path.join(tmpdir, item)
-                if not include_json and item in ["detailed_grades.json", "allocation.json"]:
-                    continue
-                if os.path.isdir(s):
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
-
-            # zip the temp directory
-            buffer = io.BytesIO()
-            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                for root, _, files in os.walk(tmpdir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, tmpdir)
-                        zip_file.write(file_path, arcname)
-
-            # donwload button
-            st.download_button(
-                label="zipファイルを取得",
-                data=buffer.getvalue(),
-                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
-                mime="application/zip",
-                type="primary",
-            )
-
-    @st.dialog("コメントを編集")
-    def _on_edit_comment_click(self):
-        st.write("採点コメントを編集してください。")
-        if self.comment_text:
-            st.components.v1.html(self.comment_text, height=40, scrolling=True)
-        self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
-        if st.button("保存"):
-            with open(
-                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8"
-            ) as f:
-                f.write("<p>" + self.comment_text + "</p>")
-            st.success("コメントを保存しました！")
-            st.rerun()
-
-    def _on_save_click(self, total_score: int):
-        self._save_scores(total_score)
-        st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
-        st.session_state["just_saved"] = True
-
-    def _save_scores(self, total_score: int):
-        """
-        Callback function for saving the current scores to files.
-
-        Parameters
-        ----------
-        total_score : int
-            The total score for the selected student.
-        """
-        # save detailed grades to JSON (original file for this app)
-        grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
-        try:
-            with open(grades_file, "r", encoding="utf-8") as gf:
-                data: dict[str, dict] = json.load(gf)
-        except FileNotFoundError:
-            data: dict[str, dict] = {}
-        data[self.selected_student] = self.scores
-        with open(grades_file, "w", encoding="utf-8") as gf:
-            json.dump(data, gf, ensure_ascii=False, indent=2)
-
-        # save overall grades to CSV (official file from PandA)
-        csv_path = os.path.join(self.assignment_dir, "grades.csv")
-        student_id = self.selected_student.split("(")[-1].rstrip(")")
-        lines = []
-        # load existing CSV data
-        with open(csv_path, "r", newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                lines.append(row)
-        # find the header row and check the column index for "成績"
-        try:
-            header_idx = next(i for i, r in enumerate(lines) if r and r[0] == "学生番号")
-        except StopIteration:
-            st.error("grades.csv に '学生番号' ヘッダー行が見つかりません。ファイル形式を確認してください。")
-            return
-        header = lines[header_idx]
-        grade_idx = header.index("成績")
-        # update the score for the selected student
-        for i in range(header_idx + 1, len(lines)):
-            if lines[i] and lines[i][0] == student_id:
-                lines[i][grade_idx] = str(total_score)
-                break
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerows(lines)
-
-    def _load_allocation(self, path: str):
-        alloc_file = os.path.join(path, "allocation.json")
-        if os.path.isfile(alloc_file):
-            with open(alloc_file, encoding="utf-8") as f:
-                return json.load(f)
-        return {}
+    def run(self):
+        st.header("提出物ビューア")
+        self.create_sidebar()
+        self.create_widgets()
 
 
 if __name__ == "__main__":
