@@ -85,13 +85,13 @@ class ConfigPage(AppPage):
         )
         # badges to indicate the storage type
         if "OneDrive" in curr_dir:
-            st.badge("☁️ OneDrive")
+            st.badge("OneDrive", icon=":material/check:")
         elif "Google Drive" in curr_dir or "GoogleDrive" in curr_dir:
-            st.badge("☁️ Google Drive", color="green")
+            st.badge("Google Drive", icon=":material/check:", color="green")
         elif "Mobile Documents" in curr_dir:
-            st.badge("☁️ iCloud", color="red")
+            st.badge("iCloud", icon=":material/check:", color="red")
         else:
-            st.badge("Local", color="gray")
+            st.badge("Local", icon=":material/check:", color="gray")
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn")
 
     def create_height_config(self):
