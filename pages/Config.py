@@ -29,46 +29,50 @@ class ConfigPage(AppPage):
                 return True
         return False
 
-    def copy_assignments(self, src, dst):
-        for item in os.listdir(src):
-            s = os.path.join(src, item)
-            d = os.path.join(dst, item)
-            if os.path.isdir(s):
-                shutil.copytree(s, d, dirs_exist_ok=True)
-            else:
-                shutil.copy2(s, d)
-
     @st.dialog("ベースディレクトリの変更")
     def change_base_dir_dialog(self):
+        curr_dir = self.config.get("save", {}).get("dir", "")
         new_dir = st.text_input(
             "採点データを保存するフォルダを指定して下さい（**絶対パス**）",
+            value=os.path.expanduser("~"),
             key="new_dir_input",
         )
         if new_dir:
             # check if the path is a valid directory and empty
             dir_valid = os.path.isdir(new_dir)
             dir_empty = not os.listdir(new_dir) if dir_valid else False
-            if dir_valid and dir_empty:
+            if dir_valid and new_dir != curr_dir and dir_empty:
                 st.write("有効なフォルダ")
-            elif dir_valid:
-                st.warning("指定されたフォルダは空ではありません。")
+            elif dir_valid and new_dir != curr_dir:
+                st.warning("指定されたフォルダは空ではありません。", icon=":material/warning:")
                 st.markdown(
-                    '<span style="color: gray;">既存のコンテンツ : {}</span>'.format(os.listdir(new_dir)),
+                    '<span style="color: gray;">既存のコンテンツ : {}</span>'.format(
+                        [f for f in os.listdir(new_dir) if not f.startswith(".")]
+                    ),
                     unsafe_allow_html=True,
                 )
+            elif dir_valid:
+                st.markdown("現在のフォルダが選択されました。")
+                st.markdown(f"**`{new_dir}`**")
             else:
                 st.error("指定されたパスはディレクトリではありません。")
 
-            curr_dir = self.config.get("save", {}).get("dir", "")
             move_needed = self.has_assignments(curr_dir) and dir_valid and new_dir != curr_dir
             move_assign = False
             if move_needed:
                 move_assign = st.checkbox("変更後のフォルダに既存のデータをコピーする", value=True)
-            if st.button("保存", key="save_btn"):
+            if st.button("保存", key="save_btn", disabled=(curr_dir == new_dir), icon=":material/check:"):
+                # copy contents to the new directory
                 if move_needed and move_assign:
-                    with st.status("Copying assignments..."):
-                        st.write(f"Copying assignments from `{curr_dir}` to `{new_dir}`")
-                        self.copy_assignments(curr_dir, new_dir)
+                    with st.status("Copying assignments...", expanded=True):
+                        for item in os.listdir(curr_dir):
+                            st.write(f"Copying `{item}`...")
+                            s = os.path.join(curr_dir, item)
+                            d = os.path.join(new_dir, item)
+                            if os.path.isdir(s):
+                                shutil.copytree(s, d, dirs_exist_ok=True)
+                            else:
+                                shutil.copy2(s, d)
                         st.write("Done!")
                 self.config["save"]["dir"] = new_dir
                 self.save_config()
@@ -78,20 +82,21 @@ class ConfigPage(AppPage):
     @st.fragment
     def create_basedir_config(self):
         curr_dir = self.config.get("save", {}).get("dir", "")
-        st.markdown("#### 課題データの保存先")
-        st.markdown(
-            f"現在のフォルダ：**`{curr_dir}`**",
-            help="採点データを保存するフォルダ。OneDrive や iCloud で管理されたパスを指定すると、デバイス間での同期が可能です。",
-        )
         # badges to indicate the storage type
         if "OneDrive" in curr_dir:
-            st.badge("OneDrive", icon=":material/check:")
+            badge_str = ":blue-badge[:material/check: OneDrive]"
         elif "Google Drive" in curr_dir or "GoogleDrive" in curr_dir:
-            st.badge("Google Drive", icon=":material/check:", color="green")
+            badge_str = ":green-badge[:material/check: Google Drive]"
         elif "Mobile Documents" in curr_dir:
-            st.badge("iCloud", icon=":material/check:", color="red")
+            badge_str = ":red-badge[:material/check: iCloud]"
         else:
-            st.badge("Local", icon=":material/check:", color="gray")
+            badge_str = ":gray-badge[:material/check: Local]"
+        st.markdown("#### 課題データの保存先")
+        st.markdown(
+            f"現在のフォルダ：{badge_str}",
+            help="採点データを保存するフォルダ。OneDrive や iCloud で管理されたパスを指定すると、デバイス間での同期が可能です。",
+        )
+        st.code(curr_dir, language="plaintext", wrap_lines=True)
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn", icon=":material/folder:")
 
     def create_height_config(self):
