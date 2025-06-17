@@ -84,3 +84,7 @@ conda activate app-ta
 ```shell
 streamlit run main.py
 ```
+
+### 3. クラウド同期の設定 (optional)
+
+アプリの [**Config**](http://localhost:8501/Config) から「課題データの保存先」をクラウド管理下のフォルダ（OneDrive, iCloud など）に設定することで、端末間でのデータ同期・バックアップが可能
