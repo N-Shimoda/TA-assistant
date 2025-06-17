@@ -8,26 +8,62 @@ import toml
 class ConfigPage:
     def __init__(self):
         self.CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "config.toml")
-        self.current_dir = self.load_config()
+        self.default_config = {
+            "save": {"dir": "/Users/naoki/OneDrive - Kyoto University/assignments"},
+            "window": {"grading_height": 740},
+        }
+        self.config = self.load_config()
 
         st.session_state.setdefault("just_saved", False)
+        if st.session_state.get("just_saved"):
+            st.toast("設定を保存しました。", icon="✅")
+            st.session_state["just_saved"] = False
 
     def load_config(self):
         if not os.path.exists(self.CONFIG_PATH):
             os.makedirs(os.path.dirname(self.CONFIG_PATH), exist_ok=True)
             with open(self.CONFIG_PATH, "w") as f:
-                f.write("")
-            return "assignments"
+                toml.dump(self.default_config, f)
+            return self.default_config
         try:
-            config = toml.load(self.CONFIG_PATH)
-            return config.get("save", {}).get("dir", "assignments")
+            curr_config = toml.load(self.CONFIG_PATH)
+            return self.merge_dicts(self.default_config, curr_config)
         except Exception:
-            return "assignments"
+            return self.default_config
 
-    def save_config(self, new_dir):
-        config = {"save": {"dir": new_dir}}
+    def save_config(self):
+        """Saves the current configuration to the config file."""
         with open(self.CONFIG_PATH, "w") as f:
-            toml.dump(config, f)
+            toml.dump(self.config, f)
+        print("Saved current config", self.config)
+
+    def merge_dicts(self, default, override):
+        """
+        Recursively merges two dictionaries, with values from the override dictionary
+        taking precedence. If both dictionaries contain a value for the same key and
+        both values are dictionaries, they are merged recursively.
+
+        Parameters
+        ----------
+        default : dict
+            The base dictionary to merge into.
+        override : dict
+            The dictionary whose values will override those in the base dictionary.
+
+        Returns
+        -------
+        dict
+            A new dictionary containing the merged keys and values.
+        """
+        result = default.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # ネストされた辞書を再帰的にマージ
+                result[key] = self.merge_dicts(result[key], value)
+            else:
+                # 単純な値や型が異なる場合は上書き
+                result[key] = value
+        return result
 
     def has_assignments(self, path):
         if not os.path.isdir(path):
@@ -38,8 +74,6 @@ class ConfigPage:
         return False
 
     def copy_assignments(self, src, dst):
-        if not os.path.exists(dst):
-            os.makedirs(dst, exist_ok=True)
         for item in os.listdir(src):
             s = os.path.join(src, item)
             d = os.path.join(dst, item)
@@ -63,40 +97,73 @@ class ConfigPage:
             elif dir_valid:
                 st.warning("指定されたフォルダは空ではありません。")
                 st.markdown(
-                    '<span style="color: gray;">現在のコンテンツ : {}</span>'.format(
-                        [path for path in os.listdir(new_dir) if not path.startswith(".")]
-                    ),
+                    '<span style="color: gray;">現在のコンテンツ : {}</span>'.format(os.listdir(new_dir)),
                     unsafe_allow_html=True,
                 )
             else:
                 st.error("指定されたパスはディレクトリではありません。")
 
-            move_needed = self.has_assignments(self.current_dir) and dir_valid and new_dir != self.current_dir
+            curr_dir = self.config.get("save", {}).get("dir", "")
+            move_needed = self.has_assignments(curr_dir) and dir_valid and new_dir != curr_dir
             move_assign = False
             if move_needed:
                 move_assign = st.checkbox("変更後のフォルダに既存のデータをコピーする", value=True)
             if st.button("保存", key="save_btn"):
                 if move_needed and move_assign:
-                    self.copy_assignments(self.current_dir, new_dir)
-                self.save_config(new_dir)
+                    with st.status("Copying assignments..."):
+                        st.write(f"Copying assignments from `{curr_dir}` to `{new_dir}`")
+                        self.copy_assignments(curr_dir, new_dir)
+                        st.write("Done!")
+                self.config["save"]["dir"] = new_dir
+                self.save_config()
                 st.session_state["just_saved"] = True
                 st.rerun()
 
-    def render(self):
-        st.set_page_config(page_title="Config", layout="wide")
-        st.title("Configuration")
-        st.markdown("#### Base Directory")
+    @st.fragment
+    def craete_basedir_config(self):
+        curr_dir = self.config.get("save", {}).get("dir", "")
+        st.markdown("#### 課題データの保存先")
         st.markdown(
-            f"現在のディレクトリ :`{self.current_dir}`",
+            f"現在のフォルダ：**`{curr_dir}`**",
             help="採点データを保存するフォルダ。OneDrive や iCloud で管理されたパスを指定すると、デバイス間での同期が可能です。",
         )
+        # badges to indicate the storage type
+        if "OneDrive" in curr_dir:
+            st.badge("OneDrive")
+        elif "Google Drive" in curr_dir or "GoogleDrive" in curr_dir:
+            st.badge("Google Drive", color="green")
+        elif "Mobile Documents" in curr_dir:
+            st.badge("iCloud", color="red")
+        else:
+            st.badge("Local", color="gray")
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn")
 
-        if st.session_state.get("just_saved"):
-            st.toast("設定を保存しました。", icon="✅")
-            st.session_state["just_saved"] = False
+    def create_height_config(self):
+        """Configure window height of the Grading page."""
+        st.markdown("#### Window Height")
+        height = st.slider(
+            "採点ページの高さ",
+            min_value=100,
+            max_value=1600,
+            value=self.config["window"]["grading_height"],
+            step=10,
+            key="window_height",
+        )
+        self.config["window"]["grading_height"] = height
+        st.button(
+            "保存",
+            on_click=self.save_config,
+            key="save_height_btn",
+        )
+        st.session_state["just_saved"] = True
+
+    def render(self):
+        st.title("Configuration")
+        self.craete_basedir_config()
+        self.create_height_config()
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="Config")
     page = ConfigPage()
     page.render()
