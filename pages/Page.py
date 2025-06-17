@@ -9,7 +9,7 @@ class AppPage:
     def __init__(self):
         self.CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "config.toml")
         self.default_config = {
-            "save": {"dir": "/Users/naoki/OneDrive - Kyoto University/assignments"},
+            "save": {"dir": os.path.join(os.getcwd(), "assignments")},
             "window": {"grading_height": 740},
         }
         self.config = self.load_config()
