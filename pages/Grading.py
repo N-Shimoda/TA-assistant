@@ -18,7 +18,6 @@ from pages.Page import AppPage
 class GradingPage(AppPage):
     def __init__(self):
         super().__init__()
-        self.config = self.load_config()
 
         # directories
         self.base_dir = self.config.get("save", {}).get("dir")
@@ -441,22 +440,6 @@ class GradingPage(AppPage):
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerows(lines)
-
-    def _list_subdirs(self, path: str) -> list[str]:
-        """
-        List all subdirectories in the given path.
-
-        Parameters
-        ----------
-        path : str
-            The directory path to list subdirectories from.
-
-        Returns
-        -------
-        list[str]
-            A sorted list of subdirectory names, or None if the path does not exist or is not a directory.
-        """
-        return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
 
     def _load_allocation(self, path: str):
         alloc_file = os.path.join(path, "allocation.json")
