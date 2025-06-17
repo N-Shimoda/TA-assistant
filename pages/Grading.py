@@ -23,7 +23,6 @@ class GradingPage(AppPage):
         # directories
         self.base_dir = self.config.get("save", {}).get("dir")
         os.makedirs(self.base_dir, exist_ok=True)
-        print(self.base_dir)
         self.assignment_dir = None
 
         # data for each assignment
