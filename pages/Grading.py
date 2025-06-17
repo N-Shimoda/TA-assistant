@@ -12,14 +12,18 @@ from pathlib import Path
 import streamlit as st
 from PIL import ExifTags, Image
 
-from get_base_dir import get_base_dir_from_config
+from pages.Page import AppPage
 
 
-class GradingPage:
-    def __init__(self, base_dir: str = "assignments"):
+class GradingPage(AppPage):
+    def __init__(self):
+        super().__init__()
+        self.config = self.load_config()
+
         # directories
-        os.makedirs(base_dir, exist_ok=True)
-        self.base_dir = base_dir
+        self.base_dir = self.config.get("save", {}).get("dir")
+        os.makedirs(self.base_dir, exist_ok=True)
+        print(self.base_dir)
         self.assignment_dir = None
 
         # data for each assignment
@@ -147,7 +151,7 @@ class GradingPage:
         attachments = sorted(os.listdir(attachments_dir)) if os.path.isdir(attachments_dir) else []
 
         col_main, col_grade = st.columns([3, 1], border=True)
-        HEIGHT = 740  # default height for the submission tab
+        HEIGHT = self.config["window"]["grading_height"]  # default height for the submission tab
         with col_main:
             self.create_submission_tab(attachments, html_content, attachments_dir, HEIGHT)
         with col_grade:
@@ -466,6 +470,5 @@ class GradingPage:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="提出物ビューア", layout="wide")
-    base_dir = get_base_dir_from_config()
-    app = GradingPage(base_dir)
+    app = GradingPage()
     app.run()
