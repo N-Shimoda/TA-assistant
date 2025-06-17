@@ -47,9 +47,8 @@ class AppPage:
         result = default.copy()
         for key, value in override.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                # ネストされた辞書を再帰的にマージ
+                # Recursively merge nested dictionaries
                 result[key] = self.merge_dicts(result[key], value)
             else:
-                # 単純な値や型が異なる場合は上書き
                 result[key] = value
         return result
