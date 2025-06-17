@@ -31,7 +31,7 @@ class HomePage(AppPage):
     def _on_add_subject(self):
         st.write("追加する科目名を入力してください")
         sbj_name = st.text_input("科目名", key="new_subject")
-        if st.button("追加"):
+        if sbj_name and st.button("追加"):
             os.makedirs(os.path.join(self.base_dir, sbj_name), exist_ok=True)
             st.rerun()
 
@@ -53,45 +53,62 @@ class HomePage(AppPage):
             assignment_name = os.path.splitext(zip_file.name)[0]
             assignment_dir = os.path.join(self.base_dir, sbj_name)
             os.makedirs(assignment_dir, exist_ok=True)
-
-            # Decompress the zip file
-            with zipfile.ZipFile(io.BytesIO(zip_file.read())) as zf:
-                # Detect the common prefix (top-level directory) in the zip file
-                names = [info.filename for info in zf.infolist() if not info.is_dir()]
-                common_prefix = os.path.commonprefix(names)
-                # Split by directory separator to avoid partial matches
-                if common_prefix and not common_prefix.endswith("/"):
-                    common_prefix = os.path.dirname(common_prefix) + "/"
-
-                for info in zf.infolist():
-                    # Skip __MACOSX and hidden files
-                    if (
-                        info.filename.startswith("__MACOSX")
-                        or info.filename.startswith(".")
-                        or "/__MACOSX" in info.filename
-                        or "/." in info.filename
-                    ):
-                        continue
-                    if info.is_dir():
-                        continue
-                    # Prevent garbled characters: decode as UTF-8 (cp437→utf-8)
-                    try:
-                        filename = info.filename.encode("cp437").decode("utf-8")
-                    except Exception:
-                        filename = info.filename
-                    # Remove the common prefix
-                    if common_prefix and filename.startswith(common_prefix):
-                        filename = filename[len(common_prefix) :]
-                    if not filename:
-                        continue
-                    dest_path = os.path.join(assignment_dir, filename)
-                    dest_dir = os.path.dirname(dest_path)
-                    os.makedirs(dest_dir, exist_ok=True)
-                    with zf.open(info) as src, open(dest_path, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
-
+            # decompress the zip file
+            self.decompress_zip(zip_file, assignment_dir)
             st.session_state["uploaded_assignment"] = assignment_name
             st.rerun()
+
+    def decompress_zip(self, zip_file, assignment_dir):
+        """
+        Decompress a zip file into the specified assignment directory.
+
+        Parameters
+        ----------
+        zip_file : file-like object
+            A file-like object representing the zip file to decompress.
+        assignment_dir : str
+            The directory path where the contents of the zip file will be extracted.
+
+        Notes
+        -----
+        - Skips hidden files and `__MACOSX` directories.
+        - Attempts to decode filenames as UTF-8 to prevent garbled characters.
+        - Removes the common top-level directory from extracted paths, if present.
+        """
+        with zipfile.ZipFile(io.BytesIO(zip_file.read())) as zf:
+            # Detect the common prefix (top-level directory) in the zip file
+            names = [info.filename for info in zf.infolist() if not info.is_dir()]
+            common_prefix = os.path.commonprefix(names)
+            # Split by directory separator to avoid partial matches
+            if common_prefix and not common_prefix.endswith("/"):
+                common_prefix = os.path.dirname(common_prefix) + "/"
+
+            for info in zf.infolist():
+                # Skip __MACOSX and hidden files
+                if (
+                    info.filename.startswith("__MACOSX")
+                    or info.filename.startswith(".")
+                    or "/__MACOSX" in info.filename
+                    or "/." in info.filename
+                ):
+                    continue
+                if info.is_dir():
+                    continue
+                # Prevent garbled characters: decode as UTF-8 (cp437→utf-8)
+                try:
+                    filename = info.filename.encode("cp437").decode("utf-8")
+                except Exception:
+                    filename = info.filename
+                # Remove the common prefix
+                if common_prefix and filename.startswith(common_prefix):
+                    filename = filename[len(common_prefix) :]
+                if not filename:
+                    continue
+                dest_path = os.path.join(assignment_dir, filename)
+                dest_dir = os.path.dirname(dest_path)
+                os.makedirs(dest_dir, exist_ok=True)
+                with zf.open(info) as src, open(dest_path, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
 
     def create_widgets(self):
         """Create widgets for the home page."""
