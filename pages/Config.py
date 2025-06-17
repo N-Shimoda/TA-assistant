@@ -85,11 +85,11 @@ class ConfigPage(AppPage):
         )
         # badges to indicate the storage type
         if "OneDrive" in curr_dir:
-            st.badge("OneDrive")
+            st.badge("☁️ OneDrive")
         elif "Google Drive" in curr_dir or "GoogleDrive" in curr_dir:
-            st.badge("Google Drive", color="green")
+            st.badge("☁️ Google Drive", color="green")
         elif "Mobile Documents" in curr_dir:
-            st.badge("iCloud", color="red")
+            st.badge("☁️ iCloud", color="red")
         else:
             st.badge("Local", color="gray")
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn")
