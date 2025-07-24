@@ -37,30 +37,43 @@ class HomePage(AppPage):
 
     @st.dialog("新しい課題を追加")
     def _on_add_assignment(self):
-        st.write("課題の科目を選択してください")
-        sbj_name = st.selectbox("科目", self.subjects, index=None, key="subject_selection")
+        st.subheader("科目")
+        sbj_name = st.selectbox("課題の科目を選択してください", self.subjects, key="subject_selection")
 
-        st.write("アップロード")
+        st.subheader("アップロード")
         zip_file = st.file_uploader(
-            "課題ファイルを選択",
+            "課題ファイル",
             type=["zip"],
             key="assignment_file",
-            help="PandA から課題フォルダをダウンロードし、zip ファイルとしてアップロードして下さい。",
+            help="PandA から課題フォルダをダウンロードし、圧縮した zip ファイルをアップロードして下さい。",
+        )
+        alloc_file = st.file_uploader(
+            "配点ファイル",
+            type=["json"],
+            key="allocation_file",
+            help="配点と正答を定義したjsonをアップロードして下さい。",
         )
 
-        if sbj_name and zip_file and st.button("追加"):
-            # extract assignment title from zip file name
+        if sbj_name and zip_file and alloc_file and st.button("追加"):
+            # Extract assignment title from zip file name
             assignment_name = os.path.splitext(zip_file.name)[0]
             assignment_dir = os.path.join(self.base_dir, sbj_name)
             os.makedirs(assignment_dir, exist_ok=True)
-            # decompress the zip file
-            self.decompress_zip(zip_file, assignment_dir)
+
+            # Decompress the zip file
+            dest_dir = self.decompress_zip(zip_file, assignment_dir)
+
+            # Save allocation file to the assignment directory
+            alloc_path = os.path.join(dest_dir, os.path.basename(alloc_file.name))
+            with open(alloc_path, "wb") as f:
+                f.write(alloc_file.read())
+
             st.session_state["uploaded_assignment"] = assignment_name
             st.rerun()
 
     def decompress_zip(self, zip_file, assignment_dir):
         """
-        Decompress a zip file into the specified assignment directory.
+        Decompress a zip file into a subdirectory under assignment_dir named after the zip file (without extension).
 
         Parameters
         ----------
@@ -69,12 +82,22 @@ class HomePage(AppPage):
         assignment_dir : str
             The directory path where the contents of the zip file will be extracted.
 
+        Returns
+        -------
+        str
+            The directory where the files were extracted.
+
         Notes
         -----
         - Skips hidden files and `__MACOSX` directories.
         - Attempts to decode filenames as UTF-8 to prevent garbled characters.
         - Removes the common top-level directory from extracted paths, if present.
         """
+        # Create a subdirectory named after the zip file (without extension)
+        zip_base = os.path.splitext(zip_file.name)[0]
+        extract_dir = os.path.join(assignment_dir, zip_base)
+        os.makedirs(extract_dir, exist_ok=True)
+
         with zipfile.ZipFile(io.BytesIO(zip_file.read())) as zf:
             # Detect the common prefix (top-level directory) in the zip file
             names = [info.filename for info in zf.infolist() if not info.is_dir()]
@@ -109,6 +132,8 @@ class HomePage(AppPage):
                 os.makedirs(dest_dir, exist_ok=True)
                 with zf.open(info) as src, open(dest_path, "wb") as dst:
                     shutil.copyfileobj(src, dst)
+
+        return extract_dir
 
     def create_widgets(self):
         """Create widgets for the home page."""
