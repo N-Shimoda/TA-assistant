@@ -4,7 +4,8 @@ import toml
 
 
 class AppPage:
-    """Common operations for all pages in the application. eg. Loading configurations."""
+    """Defines common operations for all pages in the application.
+    Current functionality includes loading configurations and listing subdirectories."""
 
     def __init__(self):
         self.CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".streamlit", "config.toml")
@@ -52,3 +53,19 @@ class AppPage:
             else:
                 result[key] = value
         return result
+
+    def _list_subdirs(self, path: str) -> list[str]:
+        """
+        List all subdirectories in the given path.
+
+        Parameters
+        ----------
+        path : str
+            The directory path to list subdirectories from.
+
+        Returns
+        -------
+        list[str]
+            A sorted list of subdirectory names, or None if the path does not exist or is not a directory.
+        """
+        return sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])

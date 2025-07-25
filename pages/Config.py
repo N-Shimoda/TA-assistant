@@ -94,7 +94,7 @@ class ConfigPage(AppPage):
         st.markdown("#### 課題データの保存先")
         st.markdown(
             f"現在のフォルダ：{badge_str}",
-            help="採点データを保存するフォルダ。OneDrive や iCloud で管理されたパスを指定すると、デバイス間での同期が可能です。",
+            help="採点データを保存するフォルダ。OneDrive や Google Drive で管理されたパスを指定すると、デバイス間での同期・バックアップが可能",
         )
         st.code(curr_dir, language="plaintext", wrap_lines=True)
         st.button("変更", on_click=self.change_base_dir_dialog, key="change_base_dir_btn", icon=":material/folder:")
@@ -103,7 +103,7 @@ class ConfigPage(AppPage):
         """Configure window height of the Grading page."""
         st.markdown("#### Window Height")
         height = st.slider(
-            "採点ページの高さ",
+            "採点ページのウィンドウの高さ",
             min_value=100,
             max_value=1600,
             value=self.config["window"]["grading_height"],
@@ -116,29 +116,36 @@ class ConfigPage(AppPage):
             self.save_config()
             st.session_state["just_saved"] = True
 
-    def create_reset_config(self):
+    def create_reset_button(self):
         """Reset the configuration to default values."""
 
         @st.dialog("設定をリセット")
         def reset_config_dialog():
-            st.write("設定をリセットすると、現在の設定がすべて初期値に戻ります。本当にリセットしますか？")
+            st.write("現在の設定がすべて初期値に戻ります。本当にリセットしますか？")
             st.write("デフォルトの設定：")
             st.code(toml.dumps(self.default_config), language="json", wrap_lines=True)
-            if st.button("はい、リセットします", key="confirm_reset_btn"):
+            if st.button("設定を初期化", key="confirm_reset_btn"):
                 self.config = self.default_config
                 self.save_config()
                 st.session_state["just_saved"] = True
+                st.session_state["subject"] = None
+                st.session_state["assignment"] = None
                 st.rerun()
 
         if st.button("設定をリセット", key="reset_config_btn", icon=":material/refresh:"):
             reset_config_dialog()
 
     def render(self):
-        st.title("Configuration")
+        st.header("Configuration")
         self.create_basedir_config()
         self.create_height_config()
         with st.sidebar:
-            self.create_reset_config()
+            self.create_reset_button()
+            st.link_button(
+                "GitHub",
+                "https://github.com/N-Shimoda/TA-assistant",
+                icon=":material/commit:",
+            )
 
 
 if __name__ == "__main__":
