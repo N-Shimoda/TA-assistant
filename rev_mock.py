@@ -9,19 +9,19 @@ class Allocation:
         self.box_type = box_type
         self.children = []
         self.index = index
-        self.level = len(index)
+        self.level = len(index) - 1
 
     def render(self):
-        if self.level == 1:
-            with st.container(border=True):
+        if self.level == 0:
+            with st.expander(self.index[-1], expanded=True):
                 self.create_widgets()
         else:
             self.create_widgets()
 
     def create_widgets(self):
-        st.markdown(f"{'#' * (self.level + 2)} {self.index[-1]} (level {self.level})")
+        st.markdown(f"{'#' * (self.level + 3)} {self.index[-1]} (level {self.level})")
         index_str = "_".join(map(str, self.index))
-        box_type_li = ["parent", "problem"]
+        box_type_li = ["parent", "problem"] if self.level < 2 else ["problem"]
         self.box_type = st.selectbox(
             "ボックスの種類",
             box_type_li,
@@ -32,21 +32,22 @@ class Allocation:
             case "parent":
                 for c in self.children:
                     c.render()
-                if st.button("問題を追加", key=f"add_problem_{index_str}"):
+                if self.level < 2 and st.button("問題を追加", key=f"add_problem_{index_str}"):
                     new_problem = Allocation(index=(self.index + (len(self.children),)), box_type="problem")
                     self.children.append(new_problem)
                     print(self.children)
                     st.rerun()
             case "problem":
-                self.alloc_type = st.selectbox(
-                    "配点の種類", ["full-or-zero", "partial"], key=f"allocation_type_{index_str}"
-                )
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 with col1:
+                    self.alloc_type = st.selectbox(
+                        "配点の種類", ["full-or-zero", "partial"], key=f"allocation_type_{index_str}"
+                    )
+                with col2:
                     self.score = st.number_input(
                         "配点のスコア", value=10, min_value=0, key=f"allocation_score_{index_str}"
                     )
-                with col2:
+                with col3:
                     self.answer = st.text_input("略解", key=f"allocation_answer_{index_str}")
             case _:
                 raise NotImplementedError(f"Unknown box type: {self.box_type}")
@@ -76,11 +77,17 @@ class AllocationPage:
         self.create_alloc_box()
         if st.button("問題を追加"):
             self._on_add_problem()
-        if st.button("配点を保存"):
+        if st.button("配点を保存", icon=":material/playlist_add_check:"):
             allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
-            self._on_confirm(allocation_data)
+            self._on_save(allocation_data)
 
-    @st.fragment
+        # clear button
+        with st.sidebar:
+            st.subheader("配点データを削除")
+            if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
+                st.session_state["alloc_boxes"] = {}
+                st.rerun()
+
     def create_alloc_box(self):
         if not st.session_state["alloc_boxes"]:
             st.warning("配点ボックスを追加してください。")
@@ -90,12 +97,15 @@ class AllocationPage:
     @st.dialog("問題を追加")
     def _on_add_problem(self):
         title = st.text_input("問題のタイトル", key="problem_title")
-        if title and st.button("追加"):
+        valid_title = title not in st.session_state["alloc_boxes"]
+        if not valid_title:
+            st.error("同名の問題が既に存在します。別の名前を選択してください。")
+        if title and st.button("追加", disabled=not valid_title):
             st.session_state["alloc_boxes"][title] = Allocation(index=(title,), box_type="parent")
             st.rerun()
 
     @st.dialog("確認画面")
-    def _on_confirm(self, allocation_data):
+    def _on_save(self, allocation_data):
         st.write("以下の配点でよろしいですか？")
         st.json(allocation_data)
         if st.button("確定"):
