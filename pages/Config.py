@@ -121,10 +121,10 @@ class ConfigPage(AppPage):
 
         @st.dialog("設定をリセット")
         def reset_config_dialog():
-            st.write("設定をリセットすると、現在の設定がすべて初期値に戻ります。本当にリセットしますか？")
+            st.write("現在の設定がすべて初期値に戻ります。本当にリセットしますか？")
             st.write("デフォルトの設定：")
             st.code(toml.dumps(self.default_config), language="json", wrap_lines=True)
-            if st.button("はい、リセットします", key="confirm_reset_btn"):
+            if st.button("設定を初期化", key="confirm_reset_btn"):
                 self.config = self.default_config
                 self.save_config()
                 st.session_state["just_saved"] = True
