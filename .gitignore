@@ -3,3 +3,5 @@ assignments/
 
 __pycache__/
 .vscode/
+
+test/
