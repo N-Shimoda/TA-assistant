@@ -49,7 +49,7 @@ class GradingPage(AppPage):
         st.session_state.setdefault("grading_in_progress", True)
 
     @st.fragment
-    def create_checkboxes(self) -> int:
+    def create_checkboxes(self, HEIGHT: int) -> int:
         self.scores = {}
         if not self.allocation:
             st.warning("採点項目が設定されていません。")
@@ -61,7 +61,7 @@ class GradingPage(AppPage):
                 max_score = int(alloc["score"])
                 key = prefix
                 widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                prev_val = self.saved_scores.get(key, 0)
+                prev_val = self.saved_scores.get(key, max_score)
                 match alloc["type"]:
                     case "partial":
                         val = st.number_input(
@@ -72,7 +72,7 @@ class GradingPage(AppPage):
                             suffix,
                             value=(prev_val == max_score),
                             key=widget_key,
-                            help=str(alloc.get("answer")),
+                            help=str(alloc.get("answer", "")),
                         )
                         val = max_score if checked else 0
                 self.scores[key] = val
@@ -84,10 +84,12 @@ class GradingPage(AppPage):
             else:
                 st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
 
-        for q_key, q_val in self.allocation.items():
-            recurse(q_key, q_val)
+        with st.container(height=HEIGHT - 220, border=False):
+            for q_key, q_val in self.allocation.items():
+                recurse(q_key, q_val)
 
         total = sum(self.scores.values())
+        st.markdown(f"**合計得点: {total} 点**")
         return total
 
     def _on_download_click(self, include_json: bool):
@@ -423,17 +425,16 @@ class GradingPage(AppPage):
         """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
+            # widgets for grading
             st.markdown("#### 採点結果")
-            with st.container(height=HEIGHT - 220, border=False):
-                total = self.create_checkboxes()
-            st.markdown(f"**合計得点: {total} 点**")
-            # display comments
+            total = self.create_checkboxes(HEIGHT)
             st.markdown("#### コメント")
             if self.comment_text:
                 st.html(self.comment_text)
             else:
                 st.markdown('<span style="color: gray;">コメントはありません。</span>', unsafe_allow_html=True)
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
+
             # save button
             save_button = st.button(
                 "保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀"
