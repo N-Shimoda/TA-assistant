@@ -21,6 +21,10 @@ class HomePage(AppPage):
         st.session_state.setdefault("uploaded_assignment")
         st.session_state.setdefault("subject")
         st.session_state.setdefault("assignment")
+        st.session_state.setdefault("need_allocation", False)
+
+        if st.session_state.get("need_allocation"):
+            self._on_define_points()
 
         if st.session_state.get("uploaded_assignment"):
             title = st.session_state["uploaded_assignment"]
@@ -47,28 +51,29 @@ class HomePage(AppPage):
             key="assignment_file",
             help="PandA から課題フォルダをダウンロードし、圧縮した zip ファイルをアップロードして下さい。",
         )
-        alloc_file = st.file_uploader(
-            "配点ファイル",
-            type=["json"],
-            key="allocation_file",
-            help="配点と正答を定義したjsonをアップロードして下さい。",
-        )
+        if zip_file:
+            assignment_name = st.text_input("課題名", key="assignment_name", value=os.path.splitext(zip_file.name)[0])
 
-        if sbj_name and zip_file and alloc_file and st.button("追加"):
-            # Extract assignment title from zip file name
-            assignment_name = os.path.splitext(zip_file.name)[0]
+        # Proceed only if a subject name and zip file are provided
+        if sbj_name and zip_file and st.button("次へ"):
             assignment_dir = os.path.join(self.base_dir, sbj_name)
             os.makedirs(assignment_dir, exist_ok=True)
 
             # Decompress the zip file
-            dest_dir = self.decompress_zip(zip_file, assignment_dir)
+            self.decompress_zip(zip_file, assignment_dir)
 
-            # Save allocation file to the assignment directory
-            alloc_path = os.path.join(dest_dir, os.path.basename(alloc_file.name))
-            with open(alloc_path, "wb") as f:
-                f.write(alloc_file.read())
+            st.session_state["subject"] = sbj_name
+            st.session_state["assignment"] = assignment_name
+            st.session_state["need_allocation"] = True
+            st.rerun()
 
-            st.session_state["uploaded_assignment"] = assignment_name
+    @st.dialog("配点を定義")
+    def _on_define_points(self):
+        st.write("配点を定義する機能はまだ実装されていません。")
+        # Placeholder for future implementation
+        if st.button("戻る"):
+            st.session_state["need_allocation"] = False
+            st.session_state["uploaded_assignment"] = st.session_state.get("assignment")
             st.rerun()
 
     def decompress_zip(self, zip_file, assignment_dir):

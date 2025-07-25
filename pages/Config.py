@@ -128,6 +128,8 @@ class ConfigPage(AppPage):
                 self.config = self.default_config
                 self.save_config()
                 st.session_state["just_saved"] = True
+                st.session_state["subject"] = None
+                st.session_state["assignment"] = None
                 st.rerun()
 
         if st.button("設定をリセット", key="reset_config_btn", icon=":material/refresh:"):
