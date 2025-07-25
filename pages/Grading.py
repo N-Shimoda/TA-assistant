@@ -127,7 +127,7 @@ class GradingPage(AppPage):
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"{self.assignment_dir}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                file_name=f"{os.path.basename(self.assignment_dir)}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
