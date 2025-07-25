@@ -46,7 +46,7 @@
     },
     "(b)": {
       "type": "full-or-zero",
-      "score": 14,
+      "score": 16,
       "answer": "n が奇数のとき"
     },
     "(c)": {
