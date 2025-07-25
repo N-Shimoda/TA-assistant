@@ -18,11 +18,12 @@ class HomePage(AppPage):
         self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in self.subjects}
 
         # initialize session states as None
+        st.session_state.setdefault("need_allocation", False)
         st.session_state.setdefault("uploaded_assignment")
         st.session_state.setdefault("subject")
         st.session_state.setdefault("assignment")
-        st.session_state.setdefault("need_allocation", False)
 
+        # point allocation after uploading an assignment
         if st.session_state.get("need_allocation"):
             self._on_define_points()
 
@@ -69,11 +70,27 @@ class HomePage(AppPage):
 
     @st.dialog("配点を定義")
     def _on_define_points(self):
-        st.write("配点を定義する機能はまだ実装されていません。")
-        # Placeholder for future implementation
-        if st.button("戻る"):
+        json_file = st.file_uploader(
+            "配点データをアップロード",
+            type=["json"],
+            key="allocation_file",
+            help="配点データを JSON 形式でアップロードしてください。",
+        )
+        if json_file:
+            st.json(json_file.getvalue().decode("utf-8"))
+        if json_file and st.button("完了"):
+            # 保存先ディレクトリを作成
+            subject = st.session_state.get("subject")
+            assignment = st.session_state.get("assignment")
+            save_dir = os.path.join(self.base_dir, subject, assignment)
+
+            # ファイル保存
+            save_path = os.path.join(save_dir, os.path.basename(json_file.name))
+            with open(save_path, "wb") as f:
+                f.write(json_file.read())
+
             st.session_state["need_allocation"] = False
-            st.session_state["uploaded_assignment"] = st.session_state.get("assignment")
+            st.session_state["uploaded_assignment"] = assignment
             st.rerun()
 
     def decompress_zip(self, zip_file, assignment_dir):
