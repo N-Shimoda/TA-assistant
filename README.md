@@ -26,29 +26,39 @@
 
 ```json
 {
-  "問1": {
-    "(1)": {
-      "(ア)": {
-        "type": "full-or-zero",  # 部分点なし, チェックボックスでの採点
-        "score": 10
-      },
-      "(イ)": {
-        "type": "full-or-zero",
-        "score": 10
-      },
-      "(ウ)": {
-        "type": "full-or-zero",
-        "score": 10
-      }
+  "問5": {
+    "(a)": {
+      "type": "full-or-zero", // 部分点なし, チェックボックスでの採点
+      "score": 15,
+      "answer": "Euler ではないが Hamilton である"
     },
-    "(2)": {
+    "(b)": {
       "type": "full-or-zero",
-      "score": 16
+      "score": 15,
+      "answer": "Euler ではないが Hamilton である"
     }
   },
-  "問2": {
-    "type": "partial",  # 部分点あり. 点数の記入による numerical な採点
-    "score": 32
+  "問6": {
+    "(a)": {
+      "type": "full-or-zero",
+      "score": 14,
+      "answer": "n-1"
+    },
+    "(b)": {
+      "type": "full-or-zero",
+      "score": 14,
+      "answer": "n が奇数のとき"
+    },
+    "(c)": {
+      "type": "full-or-zero",
+      "score": 16,
+      "answer": "n≥3 のとき"
+    }
+  },
+  "定理6": {
+    "type": "partial", // 部分点あり, 得点記入による採点
+    "score": 24,
+    "answer": ""
   }
 }
 ```
@@ -64,7 +74,6 @@
 
 > [!IMPORTANT]
 > zip ファイルをアップロードする際、PandA のオプション設定で **「受講者の提出テキスト」「受講者の提出物の添付」からチェックを外すこと。**
-> （PandA にある添付ファイルを上書きしないようにするため）
 
 ## 起動方法
 
