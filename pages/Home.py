@@ -61,7 +61,8 @@ class HomePage(AppPage):
             os.makedirs(assignment_dir, exist_ok=True)
 
             # Decompress the zip file
-            self.decompress_zip(zip_file, assignment_dir)
+            outdir = os.path.join(assignment_dir, assignment_name)
+            self.decompress_zip(zip_file, outdir)
 
             st.session_state["subject"] = sbj_name
             st.session_state["assignment"] = assignment_name
@@ -93,7 +94,7 @@ class HomePage(AppPage):
             st.session_state["uploaded_assignment"] = assignment
             st.rerun()
 
-    def decompress_zip(self, zip_file, assignment_dir):
+    def decompress_zip(self, zip_file, outdir):
         """
         Decompress a zip file into a subdirectory under assignment_dir named after the zip file (without extension).
 
@@ -115,10 +116,7 @@ class HomePage(AppPage):
         - Attempts to decode filenames as UTF-8 to prevent garbled characters.
         - Removes the common top-level directory from extracted paths, if present.
         """
-        # Create a subdirectory named after the zip file (without extension)
-        zip_base = os.path.splitext(zip_file.name)[0]
-        extract_dir = os.path.join(assignment_dir, zip_base)
-        os.makedirs(extract_dir, exist_ok=True)
+        os.makedirs(outdir, exist_ok=True)
 
         with zipfile.ZipFile(io.BytesIO(zip_file.read())) as zf:
             # Detect the common prefix (top-level directory) in the zip file
@@ -149,13 +147,14 @@ class HomePage(AppPage):
                     filename = filename[len(common_prefix) :]
                 if not filename:
                     continue
-                dest_path = os.path.join(assignment_dir, filename)
-                dest_dir = os.path.dirname(dest_path)
-                os.makedirs(dest_dir, exist_ok=True)
+                # Swap the base directory with outdir
+                parts = filename.split(os.sep)
+                dest_path = os.path.join(outdir, *parts[1:])
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 with zf.open(info) as src, open(dest_path, "wb") as dst:
                     shutil.copyfileobj(src, dst)
 
-        return extract_dir
+        return outdir
 
     def create_widgets(self):
         """Create widgets for the home page."""
