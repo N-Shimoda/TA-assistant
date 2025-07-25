@@ -19,15 +19,28 @@ class Allocation:
             self.create_widgets()
 
     def create_widgets(self):
-        st.markdown(f"{'#' * (self.level + 3)} {self.index[-1]} (level {self.level})")
+        st.markdown(
+            f"{'#' * (self.level + 3)} {self.index[-1]} <span style='color:gray'>(level {self.level})</span>",
+            unsafe_allow_html=True,
+        )
         index_str = "_".join(map(str, self.index))
         box_type_li = ["parent", "problem"] if self.level < 2 else ["problem"]
-        self.box_type = st.selectbox(
-            "ボックスの種類",
-            box_type_li,
-            index=box_type_li.index(self.box_type),
-            key=f"allocation_box_type_{index_str}",
-        )
+        col1, col2 = st.columns(2)
+        with col1:
+            title = st.text_input(
+                "問題のタイトル",
+                value=self.index[-1],
+                key=f"title_input_{index_str}",
+            )
+            self.index = self.index[:-1] + (title,)
+            print(self.index)
+        with col2:
+            self.box_type = st.selectbox(
+                "ボックスの種類",
+                box_type_li,
+                index=box_type_li.index(self.box_type),
+                key=f"allocation_box_type_{index_str}",
+            )
         match self.box_type:
             case "parent":
                 for c in self.children:
@@ -52,6 +65,11 @@ class Allocation:
             case _:
                 raise NotImplementedError(f"Unknown box type: {self.box_type}")
 
+        if st.session_state.get("updated_title"):
+            st.session_state["updated_title"] = False
+            self.update_children(self.index[:-1])
+            st.rerun()
+
     def to_dict(self):
         match self.box_type:
             case "problem":
@@ -64,6 +82,16 @@ class Allocation:
                 return {c.index[-1]: c.to_dict() for c in self.children}
             case _:
                 raise ValueError(f"Unknown box type: {self.box_type}")
+
+    def update_children(self, new_head_index):
+        print(self.box_type)
+        match self.box_type:
+            case "parent":
+                for c in self.children:
+                    print("updating", c)
+                    c.update_children(new_head_index)
+            case "problem":
+                self.index = new_head_index + (self.index[-1],)
 
 
 class AllocationPage:
