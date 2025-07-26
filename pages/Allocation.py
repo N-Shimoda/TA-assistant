@@ -1,7 +1,10 @@
 import json
+import os
 from typing import Literal
 
 import streamlit as st
+
+from pages.Page import AppPage
 
 
 class Allocation:
@@ -94,33 +97,73 @@ class Allocation:
                 self.index = new_head_index + (self.index[-1],)
 
 
-class AllocationPage:
+class AllocationPage(AppPage):
     def __init__(self):
+        super().__init__()
+
         self.max_level = 3
         self.max_width = 10
+
+        subjects = self._list_subdirs(self.base_dir)
+        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
+        self.selected_subject = st.session_state.get("subject")
+        self.selected_assignment = st.session_state.get("assignment")
+
+        self.alloc_path = os.path.join(
+            self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json"
+        )
         st.session_state.setdefault("alloc_boxes", {})
 
     def render(self):
-        st.title("配点の定義")
-        self.create_alloc_box()
-        if st.button("問題を追加"):
-            self._on_add_problem()
-        if st.button("配点を保存", icon=":material/playlist_add_check:"):
-            allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
-            self._on_save(allocation_data)
+        st.header("配点の定義（beta版）", divider="orange")
+        try:
+            with open(self.alloc_path, "r") as f:
+                alloc_data = json.load(f)
+            st.success("配点がすでに定義されています。")
+            st.write("JSONファイルの内容：")
+            st.json(alloc_data, expanded=True)
+        except FileNotFoundError:
+            self.create_alloc_box()
 
-        # clear button
         with st.sidebar:
-            st.subheader("配点データを削除")
-            if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
-                st.session_state["alloc_boxes"] = {}
-                st.rerun()
+            self.create_sidebar()
+
+    def create_sidebar(self):
+        st.subheader("課題の選択")
+        subjects = list(self.assignments.keys())
+        self.selected_subject = st.selectbox(
+            "科目",
+            subjects,
+            index=(subjects.index(self.selected_subject) if self.selected_subject else None),
+            key="subject_select",
+        )
+        assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
+        self.selected_assignment = st.selectbox(
+            "課題名",
+            assignment_li,
+            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            key="assignment_select",
+        )
+        # update session state for switching between Allocation and Grading pages
+        st.session_state["subject"] = self.selected_subject
+        st.session_state["assignment"] = self.selected_assignment
+
+        st.subheader("配点データを削除")
+        if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
+            st.session_state["alloc_boxes"] = {}
+            st.rerun()
 
     def create_alloc_box(self):
         if not st.session_state["alloc_boxes"]:
             st.warning("配点ボックスを追加してください。")
         for k, v in st.session_state["alloc_boxes"].items():
             v.render()
+
+        if st.button("問題を追加"):
+            self._on_add_problem()
+        if st.button("配点を保存", icon=":material/playlist_add_check:"):
+            allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
+            self._on_save(allocation_data)
 
     @st.dialog("問題を追加")
     def _on_add_problem(self):
@@ -132,16 +175,19 @@ class AllocationPage:
             st.session_state["alloc_boxes"][title] = Allocation(index=(title,), box_type="parent")
             st.rerun()
 
-    @st.dialog("確認画面")
+    @st.dialog("確認画面", width="large")
     def _on_save(self, allocation_data):
         st.write("以下の配点でよろしいですか？")
         st.json(allocation_data)
+        st.write("保存先ファイル")
+        st.code(self.alloc_path, language="shell", wrap_lines=True)
         if st.button("確定"):
-            with open("test/allocation.json", "w") as f:
+            with open(self.alloc_path, "w") as f:
                 json.dump(allocation_data, f, indent=4, ensure_ascii=False)
             st.rerun()
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="配点の定義")
     page = AllocationPage()
     page.render()

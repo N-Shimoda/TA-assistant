@@ -20,7 +20,7 @@ class GradingPage(AppPage):
         super().__init__()
 
         # directories
-        self.base_dir = self.config.get("save", {}).get("dir")
+        self.base_dir = self.config["save"]["dir"]
         os.makedirs(self.base_dir, exist_ok=True)
         self.assignment_dir = None
 
@@ -71,6 +71,9 @@ class GradingPage(AppPage):
                 index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
                 key="assignment_select",
             )
+            # update session state for switching between Allocation and Grading pages
+            st.session_state["subject"] = self.selected_subject
+            st.session_state["assignment"] = self.selected_assignment
 
             if self.selected_assignment:
                 self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
@@ -106,69 +109,6 @@ class GradingPage(AppPage):
             )
             if st.button("採点結果をダウンロード", key="download_grades"):
                 self._on_download_click(include_json)
-
-    @st.fragment
-    def create_checkboxes(self, HEIGHT: int) -> int | None:
-        """
-        Create checkboxes for grading based on the allocation structure.
-
-        Parameters
-        ----------
-        HEIGHT : int
-            Height of the container for the grading widgets.
-
-        Returns
-        -------
-        int | None
-            The total score calculated from the checkboxes, or None if no allocation.json is given.
-        """
-        self.scores = {}
-        if not self.allocation:
-            st.warning("採点項目が設定されていません。")
-            st.button("配点を設定", disabled=True)
-            return None
-
-        def recurse(prefix: str, alloc: dict):
-            suffix = prefix.split("_")[-1]
-            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
-                max_score = int(alloc["score"])
-                key = prefix
-                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                prev_val = self.saved_scores.get(key, max_score)
-                match alloc["type"]:
-                    case "partial":
-                        val = st.number_input(
-                            suffix,
-                            min_value=0,
-                            max_value=max_score,
-                            value=prev_val,
-                            step=1,
-                            key=widget_key,
-                        )
-                    case "full-or-zero":
-                        checked = st.checkbox(
-                            suffix,
-                            value=(prev_val == max_score),
-                            key=widget_key,
-                            help=str(alloc.get("answer", "")),
-                        )
-                        val = max_score if checked else 0
-                self.scores[key] = val
-            elif isinstance(alloc, dict):
-                st.markdown(prefix)
-                for k, v in alloc.items():
-                    new_pref = f"{prefix}_{k}" if prefix else k
-                    recurse(new_pref, v)
-            else:
-                st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
-
-        with st.container(height=HEIGHT - 220, border=False):
-            for q_key, q_val in self.allocation.items():
-                recurse(q_key, q_val)
-
-        total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-        return total
 
     def create_student_selection(self):
         self.students = self._list_subdirs(self.assignment_dir)
@@ -338,13 +278,13 @@ class GradingPage(AppPage):
             with tabs[-1]:
                 st.warning("課題が未提出です。")
 
-    def create_grading_tab(self, HEIGHT: int):
+    def create_grading_tab(self, height: int):
         """Create a tab for grading the selected student."""
         tabs = st.tabs(["採点結果"])
         with tabs[0]:
             # Checkboxes for grading
             st.markdown("#### 採点結果")
-            total = self.create_checkboxes(HEIGHT)
+            total = self.create_checkboxes(height)
 
             # Comment section
             st.markdown("#### コメント")
@@ -392,6 +332,70 @@ class GradingPage(AppPage):
                 st.balloons()
                 st.toast("すべての採点が完了しました！", icon="🎉")
                 st.session_state["grading_in_progress"] = False
+
+    def create_checkboxes(self, height: int) -> int | None:
+        """
+        Create checkboxes for grading based on the allocation structure.
+
+        Parameters
+        ----------
+        height : int
+            The height of the container for the checkboxes.
+
+        Returns
+        -------
+        int | None
+            The total score calculated from the checkboxes, or None if no allocation.json is given.
+        """
+        self.scores = {}
+        if not self.allocation:
+            st.warning("採点項目が設定されていません。")
+            if st.button("配点を設定"):
+                st.switch_page("pages/Allocation.py")
+            return None
+
+        @st.fragment
+        def recurse(prefix: str, alloc: dict):
+            suffix = prefix.split("_")[-1]
+            if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
+                max_score = int(alloc["score"])
+                key = prefix
+                widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
+                prev_val = self.saved_scores.get(key, max_score)
+                match alloc["type"]:
+                    case "partial":
+                        val = st.number_input(
+                            suffix,
+                            min_value=0,
+                            max_value=max_score,
+                            value=prev_val,
+                            step=1,
+                            key=widget_key,
+                        )
+                    case "full-or-zero":
+                        checked = st.checkbox(
+                            suffix,
+                            value=(prev_val == max_score),
+                            key=widget_key,
+                            help=str(alloc.get("answer", "")),
+                        )
+                        val = max_score if checked else 0
+                self.scores[key] = val
+            elif isinstance(alloc, dict):
+                st.markdown(prefix)
+                for k, v in alloc.items():
+                    new_pref = f"{prefix}_{k}" if prefix else k
+                    recurse(new_pref, v)
+            else:
+                st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
+
+        with st.container(height, border=False):
+            for q_key, q_val in self.allocation.items():
+                recurse(q_key, q_val)
+
+        total = sum(self.scores.values())
+        st.markdown(f"**合計得点: {total} 点**")
+        return total
 
     def _on_download_click(self, include_json: bool):
         """

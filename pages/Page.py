@@ -14,6 +14,7 @@ class AppPage:
             "window": {"grading_height": 740},
         }
         self.config = self.load_config()
+        self.base_dir = self.config["save"]["dir"]
 
     def load_config(self):
         if not os.path.exists(self.CONFIG_PATH):
