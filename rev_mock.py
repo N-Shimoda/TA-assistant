@@ -36,7 +36,7 @@ class Allocation:
             print(self.index)
         with col2:
             self.box_type = st.selectbox(
-                "ボックスの種類",
+                "種類",
                 box_type_li,
                 index=box_type_li.index(self.box_type),
                 key=f"allocation_box_type_{index_str}",
@@ -124,7 +124,7 @@ class AllocationPage:
 
     @st.dialog("問題を追加")
     def _on_add_problem(self):
-        title = st.text_input("問題のタイトル", key="problem_title")
+        title = st.text_input("問題のタイトル", help="問1, 設問Aなど", key="problem_title")
         valid_title = title not in st.session_state["alloc_boxes"]
         if not valid_title:
             st.error("同名の問題が既に存在します。別の名前を選択してください。")
@@ -139,7 +139,6 @@ class AllocationPage:
         if st.button("確定"):
             with open("test/allocation.json", "w") as f:
                 json.dump(allocation_data, f, indent=4, ensure_ascii=False)
-            st.toast("配点が保存されました。", icon="✅")
             st.rerun()
 
 

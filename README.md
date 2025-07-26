@@ -26,29 +26,39 @@
 
 ```json
 {
-  "問1": {
-    "(1)": {
-      "(ア)": {
-        "type": "full-or-zero",  # 部分点なし, チェックボックスでの採点
-        "score": 10
-      },
-      "(イ)": {
-        "type": "full-or-zero",
-        "score": 10
-      },
-      "(ウ)": {
-        "type": "full-or-zero",
-        "score": 10
-      }
+  "問5": {
+    "(a)": {
+      "type": "full-or-zero", // 部分点なし, チェックボックスでの採点
+      "score": 15,
+      "answer": "Euler ではないが Hamilton である"
     },
-    "(2)": {
+    "(b)": {
       "type": "full-or-zero",
-      "score": 16
+      "score": 15,
+      "answer": "Euler ではないが Hamilton である"
     }
   },
-  "問2": {
-    "type": "partial",  # 部分点あり. 点数の記入による numerical な採点
-    "score": 32
+  "問6": {
+    "(a)": {
+      "type": "full-or-zero",
+      "score": 14,
+      "answer": "n-1"
+    },
+    "(b)": {
+      "type": "full-or-zero",
+      "score": 16,
+      "answer": "n が奇数のとき"
+    },
+    "(c)": {
+      "type": "full-or-zero",
+      "score": 16,
+      "answer": "n≥3 のとき"
+    }
+  },
+  "定理6": {
+    "type": "partial", // 部分点あり, 得点記入による採点
+    "score": 24,
+    "answer": ""
   }
 }
 ```
@@ -64,7 +74,6 @@
 
 > [!IMPORTANT]
 > zip ファイルをアップロードする際、PandA のオプション設定で **「受講者の提出テキスト」「受講者の提出物の添付」からチェックを外すこと。**
-> （PandA にある添付ファイルを上書きしないようにするため）
 
 ## 起動方法
 
@@ -88,3 +97,14 @@ streamlit run main.py
 ### 3. クラウド同期の設定 (optional)
 
 アプリの [**Config**](http://localhost:8501/Config) から「課題データの保存先」をクラウド管理下のフォルダ（OneDrive, iCloud など）に設定することで、端末間でのデータ同期・バックアップが可能
+
+## Troubleshooting
+
+### 課題ファイルの容量が大きく、アップロードできない
+
+デフォルトでは 200MB までのファイルしかアップロードできない  
+対処方法：アプリ起動時のコマンドライン引数で、容量の最大値を変更する
+
+```shell
+streamlit run main.py --server.maxUploadSize 400
+```
