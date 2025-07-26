@@ -71,6 +71,9 @@ class GradingPage(AppPage):
                 index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
                 key="assignment_select",
             )
+            # update session state for switching between Allocation and Grading pages
+            st.session_state["subject"] = self.selected_subject
+            st.session_state["assignment"] = self.selected_assignment
 
             if self.selected_assignment:
                 self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)

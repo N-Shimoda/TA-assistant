@@ -140,6 +140,9 @@ class AllocationPage(AppPage):
             index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
             key="assignment_select",
         )
+        # update session state for switching between Allocation and Grading pages
+        st.session_state["subject"] = self.selected_subject
+        st.session_state["assignment"] = self.selected_assignment
 
         st.subheader("配点データを削除")
         if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
@@ -162,12 +165,15 @@ class AllocationPage(AppPage):
             st.session_state["alloc_boxes"][title] = Allocation(index=(title,), box_type="parent")
             st.rerun()
 
-    @st.dialog("確認画面")
+    @st.dialog("確認画面", width="large")
     def _on_save(self, allocation_data):
+        output_path = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json")
         st.write("以下の配点でよろしいですか？")
         st.json(allocation_data)
+        st.write("保存先ファイル")
+        st.code(output_path, language="shell", wrap_lines=True)
         if st.button("確定"):
-            with open("test/allocation.json", "w") as f:
+            with open(output_path, "w") as f:
                 json.dump(allocation_data, f, indent=4, ensure_ascii=False)
             st.rerun()
 
