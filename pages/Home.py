@@ -25,9 +25,10 @@ class HomePage(AppPage):
 
         # point allocation after uploading an assignment
         if st.session_state.get("need_allocation"):
+            st.session_state["need_allocation"] = False
             self._on_define_points()
 
-        if st.session_state.get("uploaded_assignment"):
+        elif st.session_state.get("uploaded_assignment"):
             title = st.session_state["uploaded_assignment"]
             st.toast(f"課題「{title}」を追加しました。", icon="✅")
             st.session_state["uploaded_assignment"] = None
@@ -66,10 +67,11 @@ class HomePage(AppPage):
 
             st.session_state["subject"] = sbj_name
             st.session_state["assignment"] = assignment_name
+            st.session_state["uploaded_assignment"] = assignment_name
             st.session_state["need_allocation"] = True
             st.rerun()
 
-    @st.dialog("配点を定義")
+    @st.dialog("配点を定義", width="large")
     def _on_define_points(self):
         json_file = st.file_uploader(
             "配点データをアップロード",
@@ -80,17 +82,15 @@ class HomePage(AppPage):
         if json_file:
             st.json(json_file.getvalue().decode("utf-8"))
         if json_file and st.button("完了"):
-            # 保存先ディレクトリを作成
+            # Create destination directory
             subject = st.session_state.get("subject")
             assignment = st.session_state.get("assignment")
             save_dir = os.path.join(self.base_dir, subject, assignment)
 
-            # ファイル保存
+            # Save the JSON file
             save_path = os.path.join(save_dir, os.path.basename(json_file.name))
             with open(save_path, "wb") as f:
                 f.write(json_file.read())
-
-            st.session_state["need_allocation"] = False
             st.session_state["uploaded_assignment"] = assignment
             st.rerun()
 

@@ -1,12 +1,12 @@
 import base64
 import csv
-import datetime
 import io
 import json
 import os
 import shutil
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -53,6 +53,7 @@ class GradingPage(AppPage):
         self.scores = {}
         if not self.allocation:
             st.warning("採点項目が設定されていません。")
+            st.button("配点を設定", icon=":material/arrow_forward:", disabled=True)
             return 0
 
         def recurse(prefix: str, alloc: dict):
@@ -65,7 +66,12 @@ class GradingPage(AppPage):
                 match alloc["type"]:
                     case "partial":
                         val = st.number_input(
-                            suffix, min_value=0, max_value=max_score, value=prev_val, step=1, key=widget_key
+                            suffix,
+                            min_value=0,
+                            max_value=max_score,
+                            value=prev_val,
+                            step=1,
+                            key=widget_key,
                         )
                     case "full-or-zero":
                         checked = st.checkbox(
@@ -107,7 +113,10 @@ class GradingPage(AppPage):
             for item in os.listdir(self.assignment_dir):
                 s = os.path.join(self.assignment_dir, item)
                 d = os.path.join(tmpdir, item)
-                if not include_json and item in ["detailed_grades.json", "allocation.json"]:
+                if not include_json and item in [
+                    "detailed_grades.json",
+                    "allocation.json",
+                ]:
                     continue
                 if os.path.isdir(s):
                     shutil.copytree(s, d)
@@ -127,7 +136,7 @@ class GradingPage(AppPage):
             st.download_button(
                 label="zipファイルを取得",
                 data=buffer.getvalue(),
-                file_name=f"{os.path.basename(self.assignment_dir)}_{datetime.datetime.now().strftime('%m%d_%H%M')}.zip",
+                file_name=f"{os.path.basename(self.assignment_dir)}_{datetime.now().strftime('%m%d_%H%M')}.zip",
                 mime="application/zip",
                 type="primary",
             )
@@ -140,7 +149,9 @@ class GradingPage(AppPage):
         self.comment_text = st.text_input("コメント", placeholder="ここにコメントを入力...")
         if st.button("保存"):
             with open(
-                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"), "w", encoding="utf-8"
+                os.path.join(self.assignment_dir, self.selected_student, "comments.txt"),
+                "w",
+                encoding="utf-8",
             ) as f:
                 f.write("<p>" + self.comment_text + "</p>")
             st.success("コメントを保存しました！")
@@ -212,14 +223,14 @@ class GradingPage(AppPage):
             self.selected_subject = st.selectbox(
                 "科目",
                 subjects,
-                index=subjects.index(self.selected_subject) if self.selected_subject else None,
+                index=(subjects.index(self.selected_subject) if self.selected_subject else None),
                 key="subject_select",
             )
             assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
             self.selected_assignment = st.selectbox(
                 "課題名",
                 assignment_li,
-                index=assignment_li.index(self.selected_assignment) if self.selected_assignment else None,
+                index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
                 key="assignment_select",
             )
 
@@ -307,7 +318,11 @@ class GradingPage(AppPage):
             self.create_grading_tab(HEIGHT)
 
     def create_submission_tab(
-        self, attachments: list[str], html_content: str | None, attachments_dir: str, HEIGHT: int
+        self,
+        attachments: list[str],
+        html_content: str | None,
+        attachments_dir: str,
+        HEIGHT: int,
     ):
         """
         Create tabs for displaying submitted materials.
@@ -379,7 +394,8 @@ class GradingPage(AppPage):
                             exif = image._getexif()
                             if exif is not None:
                                 orientation_key = next(
-                                    (k for k, v in ExifTags.TAGS.items() if v == "Orientation"), None
+                                    (k for k, v in ExifTags.TAGS.items() if v == "Orientation"),
+                                    None,
                                 )
                                 if orientation_key and orientation_key in exif:
                                     orientation = exif[orientation_key]
@@ -432,12 +448,19 @@ class GradingPage(AppPage):
             if self.comment_text:
                 st.html(self.comment_text)
             else:
-                st.markdown('<span style="color: gray;">コメントはありません。</span>', unsafe_allow_html=True)
+                st.markdown(
+                    '<span style="color: gray;">コメントはありません。</span>',
+                    unsafe_allow_html=True,
+                )
             st.button("コメントを編集", on_click=self._on_edit_comment_click, icon="✏️")
 
             # save button
             save_button = st.button(
-                "保存して次へ", key="save_button", on_click=self._on_save_click, args=(total,), icon="🚀"
+                "保存して次へ",
+                key="save_button",
+                on_click=self._on_save_click,
+                args=(total,),
+                icon="🚀",
             )
             if save_button and st.session_state.get("just_saved"):
                 st.toast("採点結果を保存しました！", icon="🎉")
