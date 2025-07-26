@@ -136,7 +136,7 @@ class ConfigPage(AppPage):
             reset_config_dialog()
 
     def render(self):
-        st.header("Configuration")
+        st.header("Configuration", divider="orange")
         self.create_basedir_config()
         self.create_height_config()
         with st.sidebar:

@@ -109,20 +109,24 @@ class AllocationPage(AppPage):
         self.selected_subject = st.session_state.get("subject")
         self.selected_assignment = st.session_state.get("assignment")
 
+        self.alloc_path = os.path.join(
+            self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json"
+        )
         st.session_state.setdefault("alloc_boxes", {})
 
     def render(self):
+        st.header("配点の定義（beta版）", divider="orange")
+        try:
+            with open(self.alloc_path, "r") as f:
+                alloc_data = json.load(f)
+            st.success("配点がすでに定義されています。")
+            st.write("JSONファイルの内容：")
+            st.json(alloc_data, expanded=True)
+        except FileNotFoundError:
+            self.create_alloc_box()
+
         with st.sidebar:
             self.create_sidebar()
-
-        st.title("配点の定義")
-        self.create_alloc_box()
-
-        if st.button("問題を追加"):
-            self._on_add_problem()
-        if st.button("配点を保存", icon=":material/playlist_add_check:"):
-            allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
-            self._on_save(allocation_data)
 
     def create_sidebar(self):
         st.subheader("課題の選択")
@@ -155,6 +159,12 @@ class AllocationPage(AppPage):
         for k, v in st.session_state["alloc_boxes"].items():
             v.render()
 
+        if st.button("問題を追加"):
+            self._on_add_problem()
+        if st.button("配点を保存", icon=":material/playlist_add_check:"):
+            allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
+            self._on_save(allocation_data)
+
     @st.dialog("問題を追加")
     def _on_add_problem(self):
         title = st.text_input("問題のタイトル", help="問1, 設問Aなど", key="problem_title")
@@ -167,13 +177,12 @@ class AllocationPage(AppPage):
 
     @st.dialog("確認画面", width="large")
     def _on_save(self, allocation_data):
-        output_path = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json")
         st.write("以下の配点でよろしいですか？")
         st.json(allocation_data)
         st.write("保存先ファイル")
-        st.code(output_path, language="shell", wrap_lines=True)
+        st.code(self.alloc_path, language="shell", wrap_lines=True)
         if st.button("確定"):
-            with open(output_path, "w") as f:
+            with open(self.alloc_path, "w") as f:
                 json.dump(allocation_data, f, indent=4, ensure_ascii=False)
             st.rerun()
 

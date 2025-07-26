@@ -32,6 +32,36 @@ class HomePage(AppPage):
             st.toast(f"課題「{title}」を追加しました。", icon="✅")
             st.session_state["uploaded_assignment"] = None
 
+    def render(self):
+        """Create widgets for the home page."""
+        st.header("プロジェクト一覧")
+        with st.sidebar:
+            st.button("新規科目", on_click=self._on_add_subject, icon="🎓")
+            st.button(
+                "課題を追加する",
+                on_click=self._on_add_assignment,
+                disabled=not bool(self.assignments),
+                icon="📚",
+            )
+        # navigation for the first activation
+        if not self.assignments:
+            st.markdown(
+                '<span style="color: gray;">科目が登録されていません。サイドバーから新しい科目を追加してください。</span>',
+                unsafe_allow_html=True,
+            )
+            return
+        # display subjects and assignments
+        for sbj, items in self.assignments.items():
+            st.subheader(sbj, divider="orange")
+            if items:
+                for item in items:
+                    if st.button(item, key=f"{sbj}_{item}", type="tertiary"):
+                        st.session_state["subject"] = sbj
+                        st.session_state["assignment"] = item
+                        st.switch_page("pages/Grading.py")
+            else:
+                st.markdown('<span style="color: gray;">課題がありません。</span>', unsafe_allow_html=True)
+
     @st.dialog("新しい科目を追加")
     def _on_add_subject(self):
         st.write("追加する科目名を入力してください")
@@ -155,38 +185,8 @@ class HomePage(AppPage):
 
         return outdir
 
-    def create_widgets(self):
-        """Create widgets for the home page."""
-        st.header("プロジェクト一覧")
-        with st.sidebar:
-            st.button("新規科目", on_click=self._on_add_subject, icon="🎓")
-            st.button(
-                "課題を追加する",
-                on_click=self._on_add_assignment,
-                disabled=not bool(self.assignments),
-                icon="📚",
-            )
-        # navigation for the first activation
-        if not self.assignments:
-            st.markdown(
-                '<span style="color: gray;">科目が登録されていません。サイドバーから新しい科目を追加してください。</span>',
-                unsafe_allow_html=True,
-            )
-            return
-        # display subjects and assignments
-        for sbj, items in self.assignments.items():
-            st.subheader(sbj, divider="orange")
-            if items:
-                for item in items:
-                    if st.button(item, key=f"{sbj}_{item}", type="tertiary"):
-                        st.session_state["subject"] = sbj
-                        st.session_state["assignment"] = item
-                        st.switch_page("pages/Grading.py")
-            else:
-                st.markdown('<span style="color: gray;">課題がありません。</span>', unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     st.set_page_config(page_title="ホーム", layout="wide")
     home_page = HomePage()
-    home_page.create_widgets()
+    home_page.render()
