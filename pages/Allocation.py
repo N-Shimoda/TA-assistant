@@ -1,7 +1,10 @@
 import json
+import os
 from typing import Literal
 
 import streamlit as st
+
+from pages.Page import AppPage
 
 
 class Allocation:
@@ -94,27 +97,54 @@ class Allocation:
                 self.index = new_head_index + (self.index[-1],)
 
 
-class AllocationPage:
+class AllocationPage(AppPage):
     def __init__(self):
+        super().__init__()
+
         self.max_level = 3
         self.max_width = 10
+
+        subjects = self._list_subdirs(self.base_dir)
+        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
+        self.selected_subject = st.session_state.get("subject")
+        self.selected_assignment = st.session_state.get("assignment")
+
         st.session_state.setdefault("alloc_boxes", {})
 
     def render(self):
+        with st.sidebar:
+            self.create_sidebar()
+
         st.title("配点の定義")
         self.create_alloc_box()
+
         if st.button("問題を追加"):
             self._on_add_problem()
         if st.button("配点を保存", icon=":material/playlist_add_check:"):
             allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
             self._on_save(allocation_data)
 
-        # clear button
-        with st.sidebar:
-            st.subheader("配点データを削除")
-            if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
-                st.session_state["alloc_boxes"] = {}
-                st.rerun()
+    def create_sidebar(self):
+        st.subheader("課題の選択")
+        subjects = list(self.assignments.keys())
+        self.selected_subject = st.selectbox(
+            "科目",
+            subjects,
+            index=(subjects.index(self.selected_subject) if self.selected_subject else None),
+            key="subject_select",
+        )
+        assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
+        self.selected_assignment = st.selectbox(
+            "課題名",
+            assignment_li,
+            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            key="assignment_select",
+        )
+
+        st.subheader("配点データを削除")
+        if st.button("リセット", disabled=not st.session_state["alloc_boxes"], icon=":material/delete:"):
+            st.session_state["alloc_boxes"] = {}
+            st.rerun()
 
     def create_alloc_box(self):
         if not st.session_state["alloc_boxes"]:
@@ -143,5 +173,6 @@ class AllocationPage:
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="配点の定義")
     page = AllocationPage()
     page.render()

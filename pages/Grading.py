@@ -20,7 +20,7 @@ class GradingPage(AppPage):
         super().__init__()
 
         # directories
-        self.base_dir = self.config.get("save", {}).get("dir")
+        self.base_dir = self.config["save"]["dir"]
         os.makedirs(self.base_dir, exist_ok=True)
         self.assignment_dir = None
 
@@ -125,7 +125,7 @@ class GradingPage(AppPage):
         self.scores = {}
         if not self.allocation:
             st.warning("採点項目が設定されていません。")
-            st.button("配点を設定", disabled=True)
+            st.button("配点を設定")
             return None
 
         def recurse(prefix: str, alloc: dict):
