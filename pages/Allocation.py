@@ -22,10 +22,7 @@ class Allocation:
             self.create_widgets()
 
     def create_widgets(self):
-        st.markdown(
-            f"{'#' * (self.level + 3)} {self.index[-1]} <span style='color:gray'>(level {self.level})</span>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"{'#' * (self.level + 3)} {self.index[-1]}")
         index_str = "_".join(map(str, self.index))
         box_type_li = ["parent", "problem"] if self.level < 2 else ["problem"]
         col1, col2 = st.columns(2)
@@ -109,20 +106,29 @@ class AllocationPage(AppPage):
         self.selected_subject = st.session_state.get("subject")
         self.selected_assignment = st.session_state.get("assignment")
 
-        self.alloc_path = os.path.join(
-            self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json"
+        self.alloc_path = (
+            os.path.join(self.base_dir, self.selected_subject, self.selected_assignment, "allocation.json")
+            if self.selected_subject and self.selected_assignment
+            else None
         )
         st.session_state.setdefault("alloc_boxes", {})
 
     def render(self):
-        st.header("配点の定義（beta版）", divider="orange")
+        st.header(
+            "配点の定義（beta版）",
+            divider="orange",
+        )
+        st.info(
+            "本機能は **beta 版** です。配点は課題の追加時に `allocation.json` としてアップロードすることを推奨します",
+            icon="📌",
+        )
         try:
             with open(self.alloc_path, "r") as f:
                 alloc_data = json.load(f)
-            st.success("配点がすでに定義されています。")
+            st.success("配点がすでに定義されています。", icon=":material/check:")
             st.write("JSONファイルの内容：")
             st.json(alloc_data, expanded=True)
-        except FileNotFoundError:
+        except (FileNotFoundError, TypeError):
             self.create_alloc_box()
 
         with st.sidebar:

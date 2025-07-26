@@ -100,7 +100,7 @@ class HomePage(AppPage):
             st.session_state["need_allocation"] = True
             st.rerun()
 
-    @st.dialog("配点を定義", width="large")
+    @st.dialog("配点を定義")
     def _on_define_points(self):
         json_file = st.file_uploader(
             "配点データをアップロード",

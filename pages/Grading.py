@@ -21,8 +21,15 @@ class GradingPage(AppPage):
 
         # directories
         self.base_dir = self.config["save"]["dir"]
-        os.makedirs(self.base_dir, exist_ok=True)
         self.assignment_dir = None
+        os.makedirs(self.base_dir, exist_ok=True)
+        subjects = self._list_subdirs(self.base_dir)
+        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
+
+        # initialize selections
+        self.selected_subject = st.session_state.get("subject")
+        self.selected_assignment = st.session_state.get("assignment")
+        self.selected_student = None
 
         # data for each assignment
         self.allocation = {}
@@ -35,13 +42,8 @@ class GradingPage(AppPage):
         self.saved_scores = {}
         self.comment_text = ""
 
-        # initialize selections
-        self.selected_subject = st.session_state.get("subject")
-        self.selected_assignment = st.session_state.get("assignment")
-        self.selected_student = None
-
-        subjects = self._list_subdirs(self.base_dir)
-        self.assignments = {sbj: self._list_subdirs(os.path.join(self.base_dir, sbj)) for sbj in subjects}
+        # config for grading
+        self.full_score_as_default = False
 
         # session states
         st.session_state.setdefault("student_index", 0)
@@ -50,65 +52,68 @@ class GradingPage(AppPage):
 
     def render(self):
         st.header("提出物ビューア")
-        self.create_sidebar()
+        with st.sidebar:
+            self.create_sidebar()
         self.create_widgets()
 
     def create_sidebar(self):
-        with st.sidebar:
-            # selecttion of subject and assignment
-            st.markdown("### 提出物の選択")
-            subjects = list(self.assignments.keys())
-            self.selected_subject = st.selectbox(
-                "科目",
-                subjects,
-                index=(subjects.index(self.selected_subject) if self.selected_subject else None),
-                key="subject_select",
-            )
-            assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
-            self.selected_assignment = st.selectbox(
-                "課題名",
-                assignment_li,
-                index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
-                key="assignment_select",
-            )
-            # update session state for switching between Allocation and Grading pages
-            st.session_state["subject"] = self.selected_subject
-            st.session_state["assignment"] = self.selected_assignment
+        # Select subject and assignment
+        st.markdown("### 提出物の選択")
+        subjects = list(self.assignments.keys())
+        self.selected_subject = st.selectbox(
+            "科目",
+            subjects,
+            index=(subjects.index(self.selected_subject) if self.selected_subject else None),
+            key="subject_select",
+        )
+        assignment_li = self.assignments[self.selected_subject] if self.selected_subject else []
+        self.selected_assignment = st.selectbox(
+            "課題名",
+            assignment_li,
+            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            key="assignment_select",
+        )
 
-            if self.selected_assignment:
-                self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
-                self.allocation = self._load_allocation(self.assignment_dir)
-                # student selection
-                self.create_student_selection()
+        # Update session state for switching between Allocation and Grading pages
+        st.session_state["subject"] = self.selected_subject
+        st.session_state["assignment"] = self.selected_assignment
 
-                # display progress
-                grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
-                try:
-                    with open(grades_file, encoding="utf-8") as gf:
-                        graded = json.load(gf)
-                    self.graded_count = len(graded)
-                except FileNotFoundError:
-                    self.graded_count = 0
-                self.total_count = len(self.students)
+        if self.selected_assignment:
+            self.assignment_dir = os.path.join(self.base_dir, self.selected_subject, self.selected_assignment)
+            self.allocation = self._load_allocation(self.assignment_dir)
+            # student selection
+            self.create_student_selection()
 
-            st.markdown("### 採点進捗")
-            st.markdown(
-                f"#### 採点済み: {self.graded_count} / {self.total_count}"
-                if self.total_count
-                else "#### 採点済み: 0 / 0"
-            )
-            st.progress(self.graded_count / self.total_count if self.total_count else 0)
+            # display progress
+            grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
+            try:
+                with open(grades_file, encoding="utf-8") as gf:
+                    graded = json.load(gf)
+                self.graded_count = len(graded)
+            except FileNotFoundError:
+                self.graded_count = 0
+            self.total_count = len(self.students)
 
-            # download button
-            st.divider()
-            st.markdown("### ダウンロード")
-            include_json = st.checkbox(
-                "アプリ固有のjsonファイルを含める",
-                key="include_json_files",
-                help="PandA へアップロードする場合は、チェックを外してください",
-            )
-            if st.button("採点結果をダウンロード", key="download_grades"):
-                self._on_download_click(include_json)
+        # Default scores
+        st.markdown("### 採点の初期値")
+        self.full_score_as_default = st.checkbox("各問題の得点を満点で初期化", value=self.full_score_as_default)
+
+        st.markdown("### 採点進捗")
+        st.markdown(
+            f"##### 採点済み: {self.graded_count} / {self.total_count}" if self.total_count else "#### 採点済み: 0 / 0"
+        )
+        st.progress(self.graded_count / self.total_count if self.total_count else 0)
+
+        # Download button
+        st.divider()
+        st.markdown("### ダウンロード")
+        include_json = st.checkbox(
+            "アプリ固有のjsonファイルを含める",
+            key="include_json_files",
+            help="PandA へアップロードする場合は、チェックを外してください",
+        )
+        if st.button("採点結果をダウンロード", key="download_grades"):
+            self._on_download_click(include_json)
 
     def create_student_selection(self):
         self.students = self._list_subdirs(self.assignment_dir)
@@ -240,6 +245,8 @@ class GradingPage(AppPage):
                                 )
                                 if orientation_key and orientation_key in exif:
                                     orientation = exif[orientation_key]
+                                else:
+                                    orientation = 1
                                 if orientation == 3:
                                     image = image.rotate(180, expand=True)
                                 elif orientation == 6:
@@ -304,8 +311,8 @@ class GradingPage(AppPage):
 
             # buttons for switching students
             st.divider()
-            col_prev, col_next = st.columns(2)
             save_result = total is not None
+            col_prev, col_next = st.columns([2, 3]) if save_result else st.columns(2)
             with col_prev:
                 st.button(
                     "前へ",
@@ -322,7 +329,7 @@ class GradingPage(AppPage):
                     key="next_button",
                     on_click=self._on_next_click,
                     args=(total,),
-                    icon=":material/arrow_forward_ios:",
+                    icon="🚀" if save_result else ":material/arrow_forward_ios:",
                     use_container_width=True,
                 )
             if next_button and st.session_state.get("just_saved"):
@@ -333,6 +340,7 @@ class GradingPage(AppPage):
                 st.toast("すべての採点が完了しました！", icon="🎉")
                 st.session_state["grading_in_progress"] = False
 
+    @st.fragment
     def create_checkboxes(self, height: int) -> int | None:
         """
         Create checkboxes for grading based on the allocation structure.
@@ -354,14 +362,13 @@ class GradingPage(AppPage):
                 st.switch_page("pages/Allocation.py")
             return None
 
-        @st.fragment
         def recurse(prefix: str, alloc: dict):
             suffix = prefix.split("_")[-1]
             if isinstance(alloc, dict) and "score" in alloc and "type" in alloc:
                 max_score = int(alloc["score"])
                 key = prefix
                 widget_key = f"{self.selected_student}_{prefix}".replace(" ", "_")
-                prev_val = self.saved_scores.get(key, max_score)
+                prev_val = self.saved_scores.get(key, max_score if self.full_score_as_default else 0)
                 match alloc["type"]:
                     case "partial":
                         val = st.number_input(
@@ -389,7 +396,7 @@ class GradingPage(AppPage):
             else:
                 st.warning(f"不正なデータ形式: {prefix} -> {alloc}")
 
-        with st.container(height, border=False):
+        with st.container(height=height - 360, border=False):
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
 
