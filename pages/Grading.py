@@ -455,8 +455,8 @@ class GradingPage(AppPage):
     def _on_next_click(self, total_score: int):
         if total_score is not None:
             self._save_scores(total_score)
+            st.session_state["just_saved"] = True
         st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
-        st.session_state["just_saved"] = True
 
     def _save_scores(self, total_score: int):
         """
