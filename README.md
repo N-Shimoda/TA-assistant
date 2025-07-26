@@ -97,3 +97,14 @@ streamlit run main.py
 ### 3. クラウド同期の設定 (optional)
 
 アプリの [**Config**](http://localhost:8501/Config) から「課題データの保存先」をクラウド管理下のフォルダ（OneDrive, iCloud など）に設定することで、端末間でのデータ同期・バックアップが可能
+
+## Troubleshooting
+
+### 課題ファイルの容量が大きく、アップロードできない
+
+デフォルトでは 200MB までのファイルしかアップロードできない  
+対処方法：アプリ起動時のコマンドライン引数で、容量の最大値を変更する
+
+```shell
+streamlit run main.py --server.maxUploadSize 400
+```
