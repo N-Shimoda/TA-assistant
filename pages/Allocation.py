@@ -44,6 +44,7 @@ class Allocation:
             case "parent":
                 for c in self.children:
                     c.render()
+                st.divider()
                 if self.level < 2 and st.button("問題を追加", key=f"add_problem_{index_str}"):
                     new_problem = Allocation(index=(self.index + (len(self.children),)), box_type="problem")
                     self.children.append(new_problem)
@@ -82,7 +83,6 @@ class Allocation:
                 raise ValueError(f"Unknown box type: {self.box_type}")
 
     def update_children(self, new_head_index):
-        print(self.box_type)
         match self.box_type:
             case "parent":
                 for c in self.children:
@@ -112,20 +112,14 @@ class AllocationPage(AppPage):
         st.session_state.setdefault("alloc_boxes", {})
 
     def render(self):
-        st.header(
-            "配点の定義（beta版）",
-            divider="orange",
-        )
-        st.info(
-            "本機能は **beta 版** です。配点は課題の追加時に `allocation.json` としてアップロードすることを推奨します",
-            icon="📌",
-        )
+        st.header("配点の定義（beta版）", divider="orange")
         try:
             with open(self.alloc_path, "r") as f:
                 alloc_data = json.load(f)
             st.success("配点がすでに定義されています。", icon=":material/check:")
             st.write("JSONファイルの内容：")
             st.json(alloc_data, expanded=True)
+            st.button("配点データの削除", on_click=self._on_delete_alloc_data, icon=":material/delete:")
         except (FileNotFoundError, TypeError):
             self.create_alloc_box()
 
@@ -159,15 +153,22 @@ class AllocationPage(AppPage):
 
     def create_alloc_box(self):
         if not st.session_state["alloc_boxes"]:
-            st.warning("配点ボックスを追加してください。")
+            st.warning("問題を追加してください。")
         for k, v in st.session_state["alloc_boxes"].items():
             v.render()
 
         if st.button("問題を追加"):
             self._on_add_problem()
-        if st.button("配点を保存", icon=":material/playlist_add_check:"):
+        if st.button("配点を保存", icon=":material/playlist_add_check:", disabled=not st.session_state["alloc_boxes"]):
             allocation_data = {k: v.to_dict() for k, v in st.session_state["alloc_boxes"].items()}
             self._on_save(allocation_data)
+
+    @st.dialog("配点データの削除")
+    def _on_delete_alloc_data(self):
+        st.write("配点データ `allocation.json` を削除します。本当によろしいですか？")
+        if st.button("削除"):
+            os.remove(self.alloc_path)
+            st.rerun()
 
     @st.dialog("問題を追加")
     def _on_add_problem(self):
@@ -182,6 +183,7 @@ class AllocationPage(AppPage):
     @st.dialog("確認画面", width="large")
     def _on_save(self, allocation_data):
         st.write("以下の配点でよろしいですか？")
+        st.write(f"合計得点：**{self._count_total_score(allocation_data)} 点**")
         st.json(allocation_data)
         st.write("保存先ファイル")
         st.code(self.alloc_path, language="shell", wrap_lines=True)
@@ -189,6 +191,19 @@ class AllocationPage(AppPage):
             with open(self.alloc_path, "w") as f:
                 json.dump(allocation_data, f, indent=4, ensure_ascii=False)
             st.rerun()
+
+    def _count_total_score(self, allocation_data: dict):
+        """
+        Count the total score from the allocation data.
+        This is used to display the total score in the Grading page.
+        """
+        self.total_score = 0
+        for value in allocation_data.values():
+            if isinstance(value, dict):
+                self.total_score += self._count_total_score(value)
+            elif isinstance(value, (int, float)):
+                self.total_score += value
+        return self.total_score
 
 
 if __name__ == "__main__":
