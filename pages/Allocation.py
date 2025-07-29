@@ -33,7 +33,6 @@ class Allocation:
                 key=f"title_input_{index_str}",
             )
             self.index = self.index[:-1] + (title,)
-            print(self.index)
         with col2:
             self.box_type = st.selectbox(
                 "種類",
@@ -48,7 +47,6 @@ class Allocation:
                 if self.level < 2 and st.button("問題を追加", key=f"add_problem_{index_str}"):
                     new_problem = Allocation(index=(self.index + (len(self.children),)), box_type="problem")
                     self.children.append(new_problem)
-                    print(self.children)
                     st.rerun()
             case "problem":
                 col1, col2, col3 = st.columns(3)
