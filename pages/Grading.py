@@ -476,8 +476,6 @@ class GradingPage(AppPage):
         """
         Callback function for saving the current scores to files.
         """
-        print(f"Saving score {self.total_score} for student {self.selected_student}")
-        print(f"detailed grades: {self.scores}")
         # Save detailed grades to JSON (original file for this app)
         grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
         try:
