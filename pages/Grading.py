@@ -38,6 +38,7 @@ class GradingPage(AppPage):
         self.graded_count = None
 
         # data for each student (i.e. submission)
+        self.total_score = None
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
@@ -70,7 +71,11 @@ class GradingPage(AppPage):
         self.selected_assignment = st.selectbox(
             "課題名",
             assignment_li,
-            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            index=(
+                assignment_li.index(self.selected_assignment)
+                if self.selected_assignment and self.selected_assignment in assignment_li
+                else None
+            ),
             key="assignment_select",
         )
 
@@ -291,7 +296,7 @@ class GradingPage(AppPage):
         with tabs[0]:
             # Checkboxes for grading
             st.markdown("#### 採点結果")
-            total = self.create_checkboxes(height)
+            self.create_checkboxes(height)
 
             # Comment section
             st.markdown("#### コメント")
@@ -311,7 +316,7 @@ class GradingPage(AppPage):
 
             # buttons for switching students
             st.divider()
-            save_result = total is not None
+            save_result = self.total_score is not None
             col_prev, col_next = st.columns([2, 3]) if save_result else st.columns(2)
             with col_prev:
                 st.button(
@@ -328,7 +333,6 @@ class GradingPage(AppPage):
                     "保存して次へ" if save_result else "次へ",
                     key="next_button",
                     on_click=self._on_next_click,
-                    args=(total,),
                     icon="🚀" if save_result else ":material/arrow_forward_ios:",
                     use_container_width=True,
                 )
@@ -400,9 +404,8 @@ class GradingPage(AppPage):
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
 
-        total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-        return total
+        self.total_score = sum(self.scores.values())
+        st.markdown(f"**合計得点: {self.total_score} 点**")
 
     def _on_download_click(self, include_json: bool):
         """
@@ -463,22 +466,19 @@ class GradingPage(AppPage):
             st.success("コメントを保存しました！")
             st.rerun()
 
-    def _on_next_click(self, total_score: int):
-        if total_score is not None:
-            self._save_scores(total_score)
+    def _on_next_click(self):
+        if self.total_score is not None:
+            self._save_scores()
             st.session_state["just_saved"] = True
         st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
 
-    def _save_scores(self, total_score: int):
+    def _save_scores(self):
         """
         Callback function for saving the current scores to files.
-
-        Parameters
-        ----------
-        total_score : int
-            The total score for the selected student.
         """
-        # save detailed grades to JSON (original file for this app)
+        print(f"Saving score {self.total_score} for student {self.selected_student}")
+        print(f"detailed grades: {self.scores}")
+        # Save detailed grades to JSON (original file for this app)
         grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
         try:
             with open(grades_file, "r", encoding="utf-8") as gf:
@@ -489,7 +489,7 @@ class GradingPage(AppPage):
         with open(grades_file, "w", encoding="utf-8") as gf:
             json.dump(data, gf, ensure_ascii=False, indent=2)
 
-        # save overall grades to CSV (official file from PandA)
+        # Save overall grades to CSV (official file from PandA)
         csv_path = os.path.join(self.assignment_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
@@ -509,7 +509,7 @@ class GradingPage(AppPage):
         # update the score for the selected student
         for i in range(header_idx + 1, len(lines)):
             if lines[i] and lines[i][0] == student_id:
-                lines[i][grade_idx] = str(total_score)
+                lines[i][grade_idx] = str(self.total_score)
                 break
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
