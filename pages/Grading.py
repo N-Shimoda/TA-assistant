@@ -328,7 +328,6 @@ class GradingPage(AppPage):
                     "保存して次へ" if save_result else "次へ",
                     key="next_button",
                     on_click=self._on_next_click,
-                    args=(total,),
                     icon="🚀" if save_result else ":material/arrow_forward_ios:",
                     use_container_width=True,
                 )
@@ -402,6 +401,7 @@ class GradingPage(AppPage):
 
         total = sum(self.scores.values())
         st.markdown(f"**合計得点: {total} 点**")
+        self.total_score = total
         return total
 
     def _on_download_click(self, include_json: bool):
@@ -463,22 +463,19 @@ class GradingPage(AppPage):
             st.success("コメントを保存しました！")
             st.rerun()
 
-    def _on_next_click(self, total_score: int):
-        if total_score is not None:
-            self._save_scores(total_score)
+    def _on_next_click(self):
+        if self.total_score is not None:
+            self._save_scores()
             st.session_state["just_saved"] = True
         st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
 
-    def _save_scores(self, total_score: int):
+    def _save_scores(self):
         """
         Callback function for saving the current scores to files.
-
-        Parameters
-        ----------
-        total_score : int
-            The total score for the selected student.
         """
-        # save detailed grades to JSON (original file for this app)
+        print(f"Saving score {self.total_score} for student {self.selected_student}")
+        print(f"detailed grades: {self.scores}")
+        # Save detailed grades to JSON (original file for this app)
         grades_file = os.path.join(self.assignment_dir, "detailed_grades.json")
         try:
             with open(grades_file, "r", encoding="utf-8") as gf:
@@ -489,7 +486,7 @@ class GradingPage(AppPage):
         with open(grades_file, "w", encoding="utf-8") as gf:
             json.dump(data, gf, ensure_ascii=False, indent=2)
 
-        # save overall grades to CSV (official file from PandA)
+        # Save overall grades to CSV (official file from PandA)
         csv_path = os.path.join(self.assignment_dir, "grades.csv")
         student_id = self.selected_student.split("(")[-1].rstrip(")")
         lines = []
@@ -509,7 +506,7 @@ class GradingPage(AppPage):
         # update the score for the selected student
         for i in range(header_idx + 1, len(lines)):
             if lines[i] and lines[i][0] == student_id:
-                lines[i][grade_idx] = str(total_score)
+                lines[i][grade_idx] = str(self.total_score)
                 break
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
