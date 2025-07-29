@@ -42,9 +42,9 @@ class Allocation:
             )
         match self.box_type:
             case "parent":
+                st.divider()
                 for c in self.children:
                     c.render()
-                st.divider()
                 if self.level < 2 and st.button("問題を追加", key=f"add_problem_{index_str}"):
                     new_problem = Allocation(index=(self.index + (len(self.children),)), box_type="problem")
                     self.children.append(new_problem)
@@ -139,7 +139,11 @@ class AllocationPage(AppPage):
         self.selected_assignment = st.selectbox(
             "課題名",
             assignment_li,
-            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            index=(
+                assignment_li.index(self.selected_assignment)
+                if self.selected_assignment and self.selected_assignment in assignment_li
+                else None
+            ),
             key="assignment_select",
         )
         # update session state for switching between Allocation and Grading pages

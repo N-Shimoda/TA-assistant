@@ -71,7 +71,11 @@ class GradingPage(AppPage):
         self.selected_assignment = st.selectbox(
             "課題名",
             assignment_li,
-            index=(assignment_li.index(self.selected_assignment) if self.selected_assignment else None),
+            index=(
+                assignment_li.index(self.selected_assignment)
+                if self.selected_assignment and self.selected_assignment in assignment_li
+                else None
+            ),
             key="assignment_select",
         )
 
