@@ -38,6 +38,7 @@ class GradingPage(AppPage):
         self.graded_count = None
 
         # data for each student (i.e. submission)
+        self.total_score = None
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
@@ -291,7 +292,7 @@ class GradingPage(AppPage):
         with tabs[0]:
             # Checkboxes for grading
             st.markdown("#### 採点結果")
-            total = self.create_checkboxes(height)
+            self.create_checkboxes(height)
 
             # Comment section
             st.markdown("#### コメント")
@@ -311,7 +312,7 @@ class GradingPage(AppPage):
 
             # buttons for switching students
             st.divider()
-            save_result = total is not None
+            save_result = self.total_score is not None
             col_prev, col_next = st.columns([2, 3]) if save_result else st.columns(2)
             with col_prev:
                 st.button(
@@ -399,10 +400,8 @@ class GradingPage(AppPage):
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
 
-        total = sum(self.scores.values())
-        st.markdown(f"**合計得点: {total} 点**")
-        self.total_score = total
-        return total
+        self.total_score = sum(self.scores.values())
+        st.markdown(f"**合計得点: {self.total_score} 点**")
 
     def _on_download_click(self, include_json: bool):
         """
