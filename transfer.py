@@ -20,7 +20,7 @@ def transfer_to_excel(csv_df: pd.DataFrame, xlsx_df: pd.DataFrame, title: str):
     xlsx_df.to_excel(xlsx_path, index=False)
 
 
-def main(assignment_dir: str):
+def main(assignment_dir: str, xlsx_df: pd.DataFrame):
     try:
         csv_df = pd.read_csv(
             os.path.join(assignment_dir, "grades.csv"),
@@ -31,8 +31,7 @@ def main(assignment_dir: str):
     except FileNotFoundError:
         print(f"File not found: {os.path.join(assignment_dir, 'grades.csv')}, skipping this assignment.")
         return
-    xlsx_df = pd.read_excel(xlsx_path)
-    transfer_to_excel(csv_df, xlsx_df, title=assignment_dir)
+    transfer_to_excel(csv_df, xlsx_df, title=os.path.basename(assignment_dir))
 
 
 if __name__ == "__main__":
@@ -41,12 +40,13 @@ if __name__ == "__main__":
         sys.exit(1)
     subject_folder = sys.argv[1]
     xlsx_path = sys.argv[2]
+    xlsx_df = pd.read_excel(xlsx_path)
 
     # List all assignment directories (ignore hidden files/folders)
-    assignment_dirs = [
-        os.path.join(subject_folder, dir) for dir in os.listdir(subject_folder) if not dir.startswith(".")
-    ]
+    assignment_dirs = [dir for dir in sorted(os.listdir(subject_folder)) if not dir.startswith(".")]
     for assignment_dir in assignment_dirs:
-        main(assignment_dir)
+        print(f"Processing assignment: {assignment_dir}")
+        path = os.path.join(subject_folder, assignment_dir)
+        main(path, xlsx_df)
 
     print("Successfully transferred!")
