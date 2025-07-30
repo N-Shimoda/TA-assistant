@@ -38,7 +38,6 @@ class GradingPage(AppPage):
         self.graded_count = None
 
         # data for each student (i.e. submission)
-        self.total_score = None
         self.scores = {}
         self.saved_scores = {}
         self.comment_text = ""
@@ -316,7 +315,7 @@ class GradingPage(AppPage):
 
             # buttons for switching students
             st.divider()
-            save_result = self.total_score is not None
+            save_result = len(self.scores) > 0
             col_prev, col_next = st.columns([2, 3]) if save_result else st.columns(2)
             with col_prev:
                 st.button(
@@ -404,8 +403,7 @@ class GradingPage(AppPage):
             for q_key, q_val in self.allocation.items():
                 recurse(q_key, q_val)
 
-        self.total_score = sum(self.scores.values())
-        st.markdown(f"**合計得点: {self.total_score} 点**")
+        st.markdown(f"**合計得点: {sum(self.scores.values())} 点**")
 
     def _on_download_click(self, include_json: bool):
         """
@@ -467,7 +465,7 @@ class GradingPage(AppPage):
             st.rerun()
 
     def _on_next_click(self):
-        if self.total_score is not None:
+        if self.scores:
             self._save_scores()
             st.session_state["just_saved"] = True
         st.session_state["student_index"] = (st.session_state["student_index"] + 1) % len(self.students)
@@ -507,7 +505,7 @@ class GradingPage(AppPage):
         # update the score for the selected student
         for i in range(header_idx + 1, len(lines)):
             if lines[i] and lines[i][0] == student_id:
-                lines[i][grade_idx] = str(self.total_score)
+                lines[i][grade_idx] = str(sum(self.scores.values()))
                 break
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
